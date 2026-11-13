@@ -6,4 +6,4 @@ class LoansConfig(AppConfig):
     name = "loans"
 
     def ready(self):
-        from . import security  # noqa: F401  (registers the failed-login counter)
+        from . import checks, security  # noqa: F401  (registers launch checks and the failed-login counter)

@@ -78,6 +78,7 @@ Status key: ✅ done in the app · ⚙️ needs a setting or task before launch 
 | Accountability: who accessed what | ✅ The audit trail records submissions, staff views, status changes, CSV exports, invoice downloads and data removal. Nobody can delete applications or customers through the admin. |
 | Data subject requests (access, correction, deletion) | ⚠️ No self-service yet. Handle manually through the admin, and record what you did. |
 | Data Protection Impact Assessment (DPIA) | ⚠️ Required for credit scoring and large-scale financial data. Business task. |
+| Email provider is a data processor | ⚙️ Sign the provider's DPA, name it in the privacy notice, and check UK transfer terms for a US provider. See EMAIL_SETUP.md. |
 | Breach process: report to the ICO within 72 hours | ⚠️ Business task. |
 
 ## 8. Application security
@@ -101,6 +102,7 @@ Status key: ✅ done in the app · ⚙️ needs a setting or task before launch 
 | Database backups, encrypted, restore tested | ⚙️ Railway Postgres backups. |
 | Dependency updates and security scanning | ⚙️ Turn on GitHub Dependabot alerts. |
 | Bank details verified (modulus check / Confirmation of Payee) before paying out | ⚠️ Not built. Only the format is checked. |
+| Customer email sent from your own domain with SPF, DKIM and DMARC | ⚙️ Follow EMAIL_SETUP.md. `check --deploy` warns until it's set up. Move DMARC to `p=quarantine` once reports are clean, to stop people faking your emails. |
 | Independent penetration test | ⚠️ Recommended before launch. |
 
 ---

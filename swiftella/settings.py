@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "anymail",
     "django_otp",
     "django_otp.plugins.otp_totp",
     "django_otp.plugins.otp_static",
@@ -196,24 +197,57 @@ AFFORDABILITY_BUFFER_PENCE = int(os.environ.get("AFFORDABILITY_BUFFER_PENCE", 10
 # Main Swiftella website, used for the header and footer links.
 MAIN_SITE_URL = os.environ.get("MAIN_SITE_URL", "https://easy-pay-loan-production.up.railway.app").rstrip("/")
 
-# Email. Production sends through any SMTP provider (Postmark, SendGrid,
-# Mailgun, Microsoft 365...). With no EMAIL_HOST set, local development
-# saves each email as a file in sent_emails/ so you can read it, and
-# production sends nothing (and logs a warning) rather than failing.
+# Email, sent from your own domain (see EMAIL_SETUP.md).
+#
+# EMAIL_DOMAIN     the domain customers see, e.g. swiftella.co.uk
+# EMAIL_PROVIDER   postmark, resend, brevo, mailgun, sendgrid (over their HTTPS API), or smtp
+# EMAIL_API_KEY    the provider's API key or server token
+#
+# With nothing set, local development saves each email to sent_emails/ and
+# production sends nothing; `manage.py check --deploy` warns about it.
+EMAIL_DOMAIN = os.environ.get("EMAIL_DOMAIN", "").strip().lower()
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "").strip().lower()
+EMAIL_API_KEY = os.environ.get("EMAIL_API_KEY", "")
+EMAIL_TIMEOUT = 10
+
+# SMTP, for providers or mail servers without an API.
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
-EMAIL_TIMEOUT = 10
-if EMAIL_HOST and (EMAIL_HOST_PASSWORD or not DEBUG):
+
+_API_PROVIDERS = {
+    # provider: (Anymail backend, Anymail setting that holds the key)
+    "postmark": ("anymail.backends.postmark.EmailBackend", "POSTMARK_SERVER_TOKEN"),
+    "resend": ("anymail.backends.resend.EmailBackend", "RESEND_API_KEY"),
+    "brevo": ("anymail.backends.brevo.EmailBackend", "BREVO_API_KEY"),
+    "mailgun": ("anymail.backends.mailgun.EmailBackend", "MAILGUN_API_KEY"),
+    "sendgrid": ("anymail.backends.sendgrid.EmailBackend", "SENDGRID_API_KEY"),
+}
+ANYMAIL = {}
+if EMAIL_PROVIDER in _API_PROVIDERS and EMAIL_API_KEY:
+    EMAIL_BACKEND, _key_setting = _API_PROVIDERS[EMAIL_PROVIDER]
+    ANYMAIL[_key_setting] = EMAIL_API_KEY
+    if EMAIL_PROVIDER == "mailgun":
+        ANYMAIL["MAILGUN_SENDER_DOMAIN"] = os.environ.get("MAILGUN_SENDER_DOMAIN", EMAIL_DOMAIN)
+        if env_bool("MAILGUN_EU", True):  # UK/EU customer data stays on Mailgun's EU servers
+            ANYMAIL["MAILGUN_API_URL"] = "https://api.eu.mailgun.net/v3"
+elif EMAIL_PROVIDER == "smtp" and EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 elif DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
     EMAIL_FILE_PATH = BASE_DIR / "sent_emails"
 else:
     EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or f"{LENDER_NAME} <{LENDER_EMAIL or 'no-reply@localhost'}>"
+EMAIL_IS_CONFIGURED = EMAIL_BACKEND.startswith(("anymail.", "django.core.mail.backends.smtp"))
+
+if EMAIL_DOMAIN and not LENDER_EMAIL:
+    LENDER_EMAIL = f"support@{EMAIL_DOMAIN}"  # where customer replies go
+DEFAULT_FROM_EMAIL = (
+    os.environ.get("DEFAULT_FROM_EMAIL")
+    or f"{LENDER_NAME} <no-reply@{EMAIL_DOMAIN or 'localhost'}>"
+)
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 LOGGING = {

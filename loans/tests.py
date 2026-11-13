@@ -526,3 +526,31 @@ class ConfirmationEmailTests(TestCase):
         app = LoanApplication.objects.get()
         self.assertRedirects(r, reverse("loans:submitted", args=[app.public_id]))
         self.assertTrue(AuditEvent.objects.filter(application=app, action="confirmation_email_failed").exists())
+
+
+class EmailSetupTests(TestCase):
+    def test_test_email_command(self):
+        from io import StringIO
+        from django.core import mail
+        out = StringIO()
+        call_command("send_test_email", "someone@example.com", stdout=out)
+        self.assertEqual(mail.outbox[0].to, ["someone@example.com"])
+        self.assertIn("Sent to someone@example.com", out.getvalue())
+
+    def run_checks(self):
+        from .checks import email_is_ready
+        return {w.id for w in email_is_ready(None)}
+
+    @override_settings(EMAIL_IS_CONFIGURED=False, EMAIL_DOMAIN="", EMAIL_PROVIDER="")
+    def test_launch_check_warns_when_email_is_not_set_up(self):
+        self.assertEqual(self.run_checks(), {"loans.E001", "loans.E003"})
+
+    @override_settings(EMAIL_IS_CONFIGURED=True, EMAIL_DOMAIN="swiftella.co.uk", EMAIL_PROVIDER="postmark",
+                       DEFAULT_FROM_EMAIL="Swiftella Loans <someone@gmail.com>")
+    def test_launch_check_catches_sending_from_another_domain(self):
+        self.assertEqual(self.run_checks(), {"loans.E004"})
+
+    @override_settings(EMAIL_IS_CONFIGURED=True, EMAIL_DOMAIN="swiftella.co.uk", EMAIL_PROVIDER="postmark",
+                       DEFAULT_FROM_EMAIL="Swiftella Loans <no-reply@mail.swiftella.co.uk>")
+    def test_launch_check_passes_for_own_domain(self):
+        self.assertEqual(self.run_checks(), set())

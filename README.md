@@ -51,7 +51,7 @@ DJANGO_DEBUG=1 python manage.py test loans
    python manage.py anonymise_old_applications --apply
    ```
    Run it without `--apply` to see what it would do.
-6. Set up email so customers get their confirmation and invoice. Use any SMTP provider (Postmark, SendGrid, Mailgun, Microsoft 365) and set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` and `DEFAULT_FROM_EMAIL`. Send from a domain you own, with SPF and DKIM set up, or emails will land in spam. Railway only allows outgoing SMTP on paid plans. Until `EMAIL_HOST` is set, no emails are sent.
+6. Set up email from your own domain so customers get their confirmation and invoice. Follow **[EMAIL_SETUP.md](EMAIL_SETUP.md)**: it covers the domain, the email provider, the DNS records (SPF, DKIM, DMARC) and the three settings `EMAIL_DOMAIN`, `EMAIL_PROVIDER` and `EMAIL_API_KEY`. Check it with `python manage.py send_test_email you@example.com`.
 
 Locally, each email is saved as a `.log` file in `sent_emails/` instead of being sent. It holds the full message, including the HTML and the attached invoice.
 
