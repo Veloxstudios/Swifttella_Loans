@@ -209,3 +209,23 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 
   .quote-total { font-size: 38px; }
   .footer-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- FCA risk warning (CONC 3.4.1R: must be prominent) ---------- */
+.risk-warning { display: flex; align-items: center; gap: 14px; background: #fff8e6; border: 1px solid #f0d48a; color: #5c4300;
+  border-radius: 14px; padding: 14px 18px; margin: 0 0 24px; font-size: 15px; }
+.risk-warning svg { flex: none; color: #9a6b00; }
+.risk-warning p { margin: 0; }
+.risk-warning a { color: #5c4300; font-weight: 700; }
+
+/* ---------- Privacy notice at the point of collection ---------- */
+.privacy-notice { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; margin-top: 30px; }
+.privacy-notice h3 { color: var(--heading-2); font-size: 16px; font-weight: 800; margin: 0 0 8px; }
+.privacy-notice ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.privacy-notice li + li { margin-top: 4px; }
+.privacy-notice li strong { color: var(--label); }
+.privacy-notice .hint { margin: 10px 0 0; }
+.privacy-notice a, .risk-warning a { text-underline-offset: 2px; }
+
+.footer-legal { color: var(--footer-muted); font-size: 12px; margin: 0 0 18px; }
+.footer-legal p { margin: 0 0 6px; }
+.footer-legal a { color: #fff; }

@@ -11,6 +11,11 @@
   <div class="step-pills" aria-hidden="true"><span>01 · Eligibility</span><span class="is-current">02 · Application</span></div>
 </section>
 
+<div class="risk-warning" role="note">
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+  <p><strong>Warning:</strong> Late repayment can cause you serious money problems. For help, go to <a href="https://www.moneyhelper.org.uk" rel="noopener">moneyhelper.org.uk</a>.</p>
+</div>
+
 {% if form.errors %}
   <div class="alert" role="alert">
     <strong>Please check the highlighted fields below.</strong>
@@ -83,6 +88,18 @@ Account number: 12345678"></textarea>
           </div>
         </fieldset>
       {% endfor %}
+      <section class="privacy-notice" aria-labelledby="privacy-title">
+        <h3 id="privacy-title">How we use your information</h3>
+        <ul>
+          <li><strong>Who:</strong> {{ lender.name }} is the data controller for the details you give us{% if lender.email %}. Contact us at {{ lender.email }}{% endif %}.</li>
+          <li><strong>Why:</strong> to assess your application, including whether the loan is affordable for you; to check your identity and prevent fraud; and to meet our legal and regulatory obligations.</li>
+          <li><strong>Sharing:</strong> with credit reference and fraud prevention agencies, and with our service providers. We never sell your data.</li>
+          <li><strong>Security:</strong> your National Insurance number and bank account number are encrypted when stored.</li>
+          <li><strong>How long:</strong> if you don't take out a loan, we remove your personal details after {{ retention_months }} months. If you do, we keep records for as long as the law requires.</li>
+          <li><strong>Your rights:</strong> you can ask to see, correct or delete your data, or object to how we use it, and you can complain to the <a href="https://ico.org.uk/make-a-complaint/" rel="noopener">Information Commissioner's Office</a>.</li>
+        </ul>
+        <p class="hint">Read our full <a href="{{ main_site }}/privacy">privacy notice</a>.</p>
+      </section>
       <div class="form-bottom">
         <button type="submit" class="btn btn-lg">Submit application →</button>
         <p class="hint">Submitting is not a lending decision. You'll get your invoice straight away.</p>

@@ -7,13 +7,8 @@ from .forms import LoanApplicationForm
 from .invoice import build_invoice_pdf
 from .models import LoanApplication, record
 from .pricing import DAILY_RATE, DAYS_PER_MONTH, PROCESSING_FEE_PENCE, TERM_CHOICES, TOTAL_COST_CAP
+from .security import client_ip, limit_submissions
 from .services import IdentityMismatch, create_application
-
-
-def client_ip(request):
-    # Railway and most PaaS proxies put the real client first in X-Forwarded-For.
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return forwarded.split(",")[0].strip() or request.META.get("REMOTE_ADDR")
 
 
 def _owned(request, public_id) -> LoanApplication:
@@ -26,6 +21,7 @@ def _owned(request, public_id) -> LoanApplication:
 
 
 @require_http_methods(["GET", "POST"])
+@limit_submissions
 def apply(request):
     form = LoanApplicationForm(request.POST or None)
     if request.method == "POST" and form.is_valid():

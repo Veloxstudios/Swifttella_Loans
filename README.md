@@ -38,13 +38,21 @@ DJANGO_DEBUG=1 python manage.py test loans
    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"   # FIELD_ENCRYPTION_KEY
    ```
    **Back up `FIELD_ENCRYPTION_KEY`.** If it is lost, the encrypted NI and account numbers cannot be recovered.
-3. The `Procfile` runs migrations on release and starts gunicorn.
+3. The `Procfile` runs migrations and creates the rate-limit cache table on release, then starts gunicorn.
 4. Create an admin with `railway run python manage.py createsuperuser`.
+5. Add a daily Railway cron job that removes personal data from old applications that never became a loan:
+   ```bash
+   python manage.py anonymise_old_applications --apply
+   ```
+   Run it without `--apply` to see what it would do.
 
 ## Before taking real customers
 
-- The quote charges 0.8% per day on the **full** amount for the whole term, which is the most the cap allows. On multi-month loans, charging only on the balance still owed would cost the customer less. Agree the real pricing before going live.
-- Bank details are checked for format only. Use a modulus-check / Confirmation of Payee service to verify them before paying out.
-- There are no credit, fraud or affordability decisions yet. Staff set the status by hand.
+See **[COMPLIANCE.md](COMPLIANCE.md)** for the full FCA, data protection and security checklist: what the app already does, which settings to fill in, and what still needs building or signing off. The most important open items:
+
+- FCA authorisation, and the status statement (`LENDER_FCA_NUMBER`) and price comparison link (`PRICE_COMPARISON_URL`) that come with it.
+- Two-factor sign-in for staff.
+- Credit reference agency checks and income verification. Today's affordability check only uses what the customer tells us.
+- Pre-contract information (SECCI), the credit agreement and the 14-day withdrawal right.
+- Bank details are only format-checked. Use a modulus check / Confirmation of Payee before paying out.
 - No confirmation emails are sent yet.
-- Add rate limiting (for example django-ratelimit, or at the proxy) to the form.

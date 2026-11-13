@@ -56,6 +56,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "loans.security.SecurityHeadersMiddleware",
 ]
 
 ROOT_URLCONF = "swiftella.urls"
@@ -86,6 +87,14 @@ DATABASES = {
     )
 }
 
+# Shared cache for rate limits. The database is used so every gunicorn worker
+# sees the same counts; `createcachetable` in the Procfile creates the table.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    if DEBUG
+    else {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "swiftella_cache"}
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
@@ -112,6 +121,11 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Security hardening for production.
+# Sessions end after 30 minutes without activity and when the browser closes.
+SESSION_COOKIE_AGE = int(os.environ.get("SESSION_IDLE_SECONDS", 30 * 60))
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 X_FRAME_OPTIONS = "DENY"
@@ -124,6 +138,17 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+# Number of proxies in front of the app that add to X-Forwarded-For
+# (Railway's edge adds one). Set to 0 when not behind a proxy.
+TRUSTED_PROXIES = int(os.environ.get("TRUSTED_PROXIES", 0 if DEBUG else 1))
+
+# Rate limits.
+APPLY_RATE_LIMIT = int(os.environ.get("APPLY_RATE_LIMIT", 5))          # applications per IP...
+APPLY_RATE_WINDOW = int(os.environ.get("APPLY_RATE_WINDOW", 60 * 60))  # ...per hour
+LOGIN_MAX_FAILURES = int(os.environ.get("LOGIN_MAX_FAILURES", 5))      # failed staff sign-ins...
+LOGIN_LOCKOUT_SECONDS = int(os.environ.get("LOGIN_LOCKOUT_SECONDS", 15 * 60))  # ...locks out for 15 minutes
 
 # How long a customer's invoice download link stays valid in their session.
 INVOICE_SESSION_KEY = "swiftella_invoices"
@@ -133,6 +158,18 @@ LENDER_NAME = os.environ.get("LENDER_NAME", "Swiftella Loans")
 LENDER_ADDRESS = os.environ.get("LENDER_ADDRESS", "United Kingdom")
 LENDER_FCA_NUMBER = os.environ.get("LENDER_FCA_NUMBER", "")
 LENDER_EMAIL = os.environ.get("LENDER_EMAIL", "")
+LENDER_COMPANY_NUMBER = os.environ.get("LENDER_COMPANY_NUMBER", "")
+LENDER_ICO_NUMBER = os.environ.get("LENDER_ICO_NUMBER", "")
+# HCSTC lenders must link to at least one FCA-authorised price comparison website.
+PRICE_COMPARISON_URL = os.environ.get("PRICE_COMPARISON_URL", "")
+PRICE_COMPARISON_NAME = os.environ.get("PRICE_COMPARISON_NAME", "")
+
+# Days to keep applications that never became a loan (submitted, declined,
+# withdrawn) before `anonymise_old_applications` removes the personal data.
+DATA_RETENTION_DAYS = int(os.environ.get("DATA_RETENTION_DAYS", 365))
+# Minimum money left each month after the repayment for an application to
+# pass the affordability check (in pence).
+AFFORDABILITY_BUFFER_PENCE = int(os.environ.get("AFFORDABILITY_BUFFER_PENCE", 10000))
 # Main Swiftella website, used for the header and footer links.
 MAIN_SITE_URL = os.environ.get("MAIN_SITE_URL", "https://easy-pay-loan-production.up.railway.app").rstrip("/")
 

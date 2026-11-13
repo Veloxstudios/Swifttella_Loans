@@ -29,6 +29,7 @@ class Customer(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    personal_data_removed_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -120,6 +121,7 @@ class LoanApplication(models.Model):
     submitted_ip = models.GenericIPAddressField(null=True, blank=True)
     submitted_at = models.DateTimeField(default=timezone.now, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
+    personal_data_removed_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-submitted_at"]
@@ -150,6 +152,21 @@ class LoanApplication(models.Model):
     @property
     def largest_instalment_pence(self):
         return max((i.amount_pence for i in self.repayments.all()), default=0)
+
+    @property
+    def left_after_repayment_pence(self):
+        """Money left in the month the loan is repaid, after essentials and the repayment."""
+        return self.disposable_income_pence - self.largest_instalment_pence
+
+    @property
+    def passes_affordability(self):
+        """FCA CONC 5.2A: the repayment must be affordable without undue difficulty.
+
+        This is a minimum check on the figures the customer gave us. Staff must
+        still verify income and check credit reference data before approving.
+        """
+        from django.conf import settings
+        return self.left_after_repayment_pence >= settings.AFFORDABILITY_BUFFER_PENCE
 
     @property
     def amount_display(self):

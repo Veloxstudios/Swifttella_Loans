@@ -83,7 +83,7 @@ class LoanApplicationForm(forms.Form):
 
     # Consents
     accepted_terms = forms.BooleanField(label="I confirm the information is accurate and accept the terms of this application")
-    consented_credit_check = forms.BooleanField(label="I agree to identity, fraud and credit reference checks")
+    consented_credit_check = forms.BooleanField(label="I agree to identity, fraud prevention and credit reference agency checks. I understand a record of the search may appear on my credit file")
     marketing_opt_in = forms.BooleanField(label="Send me product news by email (optional)", required=False)
 
     SECTIONS = [

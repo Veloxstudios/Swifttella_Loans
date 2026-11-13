@@ -1,13 +1,26 @@
-from datetime import date
+import os
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import connection
-from django.test import TestCase
+from django.core.cache import cache
+from django.core.management import call_command
+from django.test import TestCase as DjangoTestCase
+from django.test import override_settings
+from django.utils import timezone
 from django.urls import reverse
 
 from . import validators as v
 from .models import AuditEvent, Customer, LoanApplication
 from .pricing import quote
+
+
+class TestCase(DjangoTestCase):
+    """Every test starts with empty rate-limit counters."""
+
+    def setUp(self):
+        cache.clear()
+        super().setUp()
 
 
 def valid_post(**overrides):
@@ -208,3 +221,158 @@ class AmountStepTests(TestCase):
         self.assertIn("amount", r.context["form"].errors)
         r = self.client.post(reverse("loans:apply"), valid_post(amount="550"))
         self.assertEqual(r.status_code, 302)
+
+
+def quiet():
+    return open(os.devnull, "w")
+
+
+@override_settings(APPLY_RATE_LIMIT=2)
+class RateLimitTests(TestCase):
+    def test_too_many_applications_from_one_address_are_refused(self):
+        for _ in range(2):
+            self.client.cookies.clear()
+            self.client.post(reverse("loans:apply"), valid_post())
+        r = self.client.post(reverse("loans:apply"), valid_post())
+        self.assertEqual(r.status_code, 429)
+        self.assertEqual(self.client.get(reverse("loans:apply")).status_code, 200)  # viewing still works
+
+    @override_settings(TRUSTED_PROXIES=1)
+    def test_spoofed_forwarded_for_does_not_dodge_the_limit(self):
+        for fake in ("1.1.1.1", "2.2.2.2", "3.3.3.3"):
+            r = self.client.post(reverse("loans:apply"), valid_post(amount="5000"),
+                                 HTTP_X_FORWARDED_FOR=f"{fake}, 203.0.113.9")
+        self.assertEqual(r.status_code, 429)
+
+
+@override_settings(LOGIN_MAX_FAILURES=3)
+class StaffLoginLockoutTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        get_user_model().objects.create_user("staff", password="a-long-test-password", is_staff=True)
+
+    def test_locks_out_after_repeated_failures(self):
+        url = reverse("staff_login")
+        for _ in range(3):
+            self.client.post(url, {"username": "staff", "password": "wrong"})
+        r = self.client.post(url, {"username": "staff", "password": "a-long-test-password"})
+        self.assertEqual(r.status_code, 429)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_correct_password_works_before_lockout(self):
+        r = self.client.post(reverse("staff_login"), {"username": "staff", "password": "a-long-test-password"})
+        self.assertEqual(r.status_code, 302)
+
+
+class SecurityHeaderTests(TestCase):
+    def test_headers(self):
+        r = self.client.get(reverse("loans:apply"))
+        self.assertIn("script-src 'self'", r["Content-Security-Policy"])
+        self.assertIn("frame-ancestors 'none'", r["Content-Security-Policy"])
+        self.assertIn("camera=()", r["Permissions-Policy"])
+        self.assertEqual(r["X-Frame-Options"], "DENY")
+
+    def test_pages_with_personal_data_are_not_cached(self):
+        self.client.post(reverse("loans:apply"), valid_post())
+        app = LoanApplication.objects.get()
+        r = self.client.get(reverse("loans:submitted", args=[app.public_id]))
+        self.assertEqual(r["Cache-Control"], "no-store")
+
+    def test_page_shows_fca_risk_warning_and_privacy_notice(self):
+        r = self.client.get(reverse("loans:apply"))
+        self.assertContains(r, "Late repayment can cause you serious money problems. For help, go to")
+        self.assertContains(r, "How we use your information")
+
+
+class StaffControlsTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_superuser("boss", "boss@example.com", "a-long-test-password")
+
+    def make_app(self, **overrides):
+        self.client.post(reverse("loans:apply"), valid_post(**overrides))
+        self.client.cookies.clear()
+        return LoanApplication.objects.latest("submitted_at")
+
+    def set_status(self, app, status):
+        """Submit the admin change page the way a browser would, with the inline tables' hidden fields."""
+        url = reverse("admin:loans_loanapplication_change", args=[app.pk])
+        page = self.client.get(url)
+        data = {"status": status}
+        for inline in page.context["inline_admin_formsets"]:
+            fs = inline.formset
+            for name, field in fs.management_form.fields.items():
+                data[f"{fs.prefix}-{name}"] = fs.management_form.initial.get(name, field.initial)
+            for form in fs.forms:
+                for field in form.hidden_fields():
+                    value = field.value()
+                    data[field.html_name] = getattr(value, "pk", value) or ""
+        return self.client.post(url, data)
+
+    def test_unaffordable_application_cannot_be_approved(self):
+        # About £2,200 in and £2,150 out leaves about £50, but the repayment is £620.
+        app = self.make_app(monthly_housing="1500", monthly_credit="50", monthly_other="600")
+        self.assertFalse(app.passes_affordability)
+        self.client.force_login(self.admin)
+        r = self.set_status(app, "approved")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "fails the affordability check")
+        app.refresh_from_db()
+        self.assertEqual(app.status, "submitted")
+
+    def test_affordable_application_can_be_approved(self):
+        app = self.make_app(monthly_housing="500", monthly_credit="0", monthly_other="300")
+        self.assertTrue(app.passes_affordability)
+        self.client.force_login(self.admin)
+        r = self.set_status(app, "approved")
+        self.assertEqual(r.status_code, 302)
+        app.refresh_from_db()
+        self.assertEqual(app.status, "approved")
+        self.assertTrue(AuditEvent.objects.filter(application=app, action="status_changed").exists())
+
+    def test_nobody_can_delete_applications_or_customers(self):
+        app = self.make_app()
+        self.client.force_login(self.admin)
+        r = self.client.post(reverse("admin:loans_loanapplication_delete", args=[app.pk]), {"post": "yes"})
+        self.assertEqual(r.status_code, 403)
+        r = self.client.post(reverse("admin:loans_customer_delete", args=[app.customer.pk]), {"post": "yes"})
+        self.assertEqual(r.status_code, 403)
+        self.assertTrue(LoanApplication.objects.filter(pk=app.pk).exists())
+
+    def test_staff_views_are_recorded(self):
+        app = self.make_app()
+        self.client.force_login(self.admin)
+        self.client.get(reverse("admin:loans_loanapplication_change", args=[app.pk]))
+        self.assertTrue(AuditEvent.objects.filter(application=app, action="viewed_by_staff", actor="boss").exists())
+
+
+class RetentionTests(TestCase):
+    def make_old_app(self, **fields):
+        self.client.post(reverse("loans:apply"), valid_post())
+        app = LoanApplication.objects.get()
+        LoanApplication.objects.filter(pk=app.pk).update(submitted_at=timezone.now() - timedelta(days=400), **fields)
+        return app
+
+    def test_old_unfunded_applications_are_anonymised(self):
+        app = self.make_old_app()
+        call_command("anonymise_old_applications", stdout=quiet())  # dry run changes nothing
+        app.refresh_from_db()
+        self.assertIsNone(app.personal_data_removed_at)
+
+        call_command("anonymise_old_applications", "--apply", stdout=quiet())
+        app.refresh_from_db()
+        c = app.customer
+        self.assertIsNotNone(app.personal_data_removed_at)
+        self.assertEqual(app.account_last4, "")
+        self.assertEqual(c.first_name, "[removed]")
+        self.assertEqual(c.ni_number, "")
+        self.assertNotIn("jane", c.email)
+        self.assertTrue(AuditEvent.objects.filter(application=app, action="personal_data_removed").exists())
+        self.assertFalse(AuditEvent.objects.filter(application=app).exclude(actor__in=["", "retention process"]).exists())
+
+    def test_approved_applications_are_kept(self):
+        app = self.make_old_app(status="approved")
+        call_command("anonymise_old_applications", "--apply", stdout=quiet())
+        app.refresh_from_db()
+        self.assertIsNone(app.personal_data_removed_at)
+        self.assertEqual(app.customer.first_name, "Jane")

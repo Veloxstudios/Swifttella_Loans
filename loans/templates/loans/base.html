@@ -59,8 +59,13 @@
           <a href="{{ main_site }}/cookies">Cookies</a>
         </div>
       </div>
-      <p class="footer-warning"><strong>Warning:</strong> late repayment can cause you serious money problems. For help, go to <a href="https://www.moneyhelper.org.uk" rel="noopener">moneyhelper.org.uk</a>.</p>
-      <p class="footer-copy">© {% now "Y" %} Swiftella Loans. All rights reserved.</p>
+      <p class="footer-warning"><strong>Warning:</strong> Late repayment can cause you serious money problems. For help, go to <a href="https://www.moneyhelper.org.uk" rel="noopener">moneyhelper.org.uk</a>.</p>
+      {% if price_comparison.url %}<p class="footer-warning">Compare high-cost short-term loans on an FCA-authorised price comparison website: <a href="{{ price_comparison.url }}" rel="noopener">{{ price_comparison.name|default:price_comparison.url }}</a>.</p>{% endif %}
+      <div class="footer-legal">
+        {% if lender.fca_number %}<p>{{ lender.name }} is authorised and regulated by the Financial Conduct Authority (Firm Reference Number {{ lender.fca_number }}). You can check this on the <a href="https://register.fca.org.uk/" rel="noopener">Financial Services Register</a>.</p>{% endif %}
+        <p>{{ lender.name }}{% if lender.company_number %}, registered in England and Wales, company number {{ lender.company_number }}{% endif %}. Registered office: {{ lender.address }}.{% if lender.ico_number %} Registered with the Information Commissioner's Office, number {{ lender.ico_number }}.{% endif %}</p>
+      </div>
+      <p class="footer-copy">© {% now "Y" %} {{ lender.name }}. All rights reserved.</p>
     </div>
   </footer>
   {% block scripts %}{% endblock %}
