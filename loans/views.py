@@ -6,7 +6,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 from .forms import LoanApplicationForm
 from .invoice import build_invoice_pdf
 from .models import LoanApplication, record
-from .pricing import DAILY_RATE, PROCESSING_FEE_PENCE, TOTAL_COST_CAP, DAYS_PER_MONTH
+from .pricing import DAILY_RATE, DAYS_PER_MONTH, PROCESSING_FEE_PENCE, TERM_CHOICES, TOTAL_COST_CAP
 from .services import IdentityMismatch, create_application
 
 
@@ -39,7 +39,7 @@ def apply(request):
             return redirect("loans:submitted", public_id=application.public_id)
     pricing = {
         "dailyRate": float(DAILY_RATE), "cap": float(TOTAL_COST_CAP),
-        "fee": PROCESSING_FEE_PENCE / 100, "daysPerMonth": DAYS_PER_MONTH,
+        "fee": PROCESSING_FEE_PENCE / 100, "termDays": DAYS_PER_MONTH * TERM_CHOICES[0],
     }
     return render(request, "loans/apply.html", {"form": form, "pricing": pricing})
 

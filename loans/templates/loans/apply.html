@@ -1,8 +1,15 @@
 {% extends "loans/base.html" %}
+{% load static %}
 {% block title %}Apply for a loan | Swiftella Loans{% endblock %}
 {% block content %}
-<h1>Apply for a loan</h1>
-<p class="lede">It takes about five minutes. When you submit, you'll get a PDF invoice showing exactly what you'd repay.</p>
+<section class="page-intro">
+  <div>
+    <span class="eyebrow">Swiftella Loans</span>
+    <h1>Apply for a loan.</h1>
+    <p class="lede">It takes about five minutes. When you submit, you'll get a PDF invoice showing exactly what you'd repay.</p>
+  </div>
+  <div class="step-pills" aria-hidden="true"><span>01 · Eligibility</span><span class="is-current">02 · Application</span></div>
+</section>
 
 {% if form.errors %}
   <div class="alert" role="alert">
@@ -11,59 +18,94 @@
   </div>
 {% endif %}
 
-<div class="layout">
-<form method="post" novalidate class="card">
-  {% csrf_token %}
-  {% for title, fields in form.sections %}
-    <fieldset>
-      <legend>{{ forloop.counter }}. {{ title }}</legend>
-      {% for field in fields %}
-        <div class="field{% if field.errors %} has-error{% endif %}{% if field.widget_type == 'checkbox' %} check{% endif %}">
-          {% if field.widget_type == 'checkbox' %}
-            {{ field }} <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {% else %}
-            <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="opt">(optional)</span>{% endif %}</label>
-            {{ field }}
-          {% endif %}
-          {% if field.help_text %}<small class="hint">{{ field.help_text }}</small>{% endif %}
-          {% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}
+<div class="apply-shell">
+  <div class="apply-main">
+    <section class="card paste-card" aria-labelledby="paste-title">
+      <div class="section-title">
+        <span class="step-number" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+        </span>
+        <div>
+          <h2 id="paste-title">Paste your details</h2>
+          <p>Have your details saved somewhere? Paste them here and we'll fill in the form for you.</p>
         </div>
-      {% endfor %}
-    </fieldset>
-  {% endfor %}
-  <button type="submit" class="btn">Submit application</button>
-</form>
+      </div>
+      <label for="paste-box" class="sr-only">Paste your details</label>
+      <textarea id="paste-box" rows="6" spellcheck="false" placeholder="For example:
+Name: Jane Smith
+Date of birth: 17/05/1990
+Email: jane@example.com
+Phone: 07700 900123
+NI number: AB 12 34 56 C
+Address: 10 High Street, Flat 2, London, SW1A 2AA
+Sort code: 12-34-56
+Account number: 12345678"></textarea>
+      <div class="paste-actions">
+        <button type="button" class="btn" id="paste-fill">Fill in the form</button>
+        <button type="button" class="btn secondary" id="paste-clear">Clear</button>
+        <span class="paste-status" id="paste-status" role="status" aria-live="polite"></span>
+      </div>
+      <p class="hint">Labels are optional: we also recognise emails, phone numbers, postcodes, NI numbers and bank details on their own. Nothing is sent until you press Submit, and you can change any field afterwards.</p>
+    </section>
 
-<aside class="card quote" aria-live="polite">
-  <h2>Your quote</h2>
-  <dl>
-    <dt>Amount</dt><dd id="q-amount">—</dd>
-    <dt>Processing fee</dt><dd id="q-fee">—</dd>
-    <dt>Interest</dt><dd id="q-interest">—</dd>
-    <dt>Total repayable</dt><dd id="q-total" class="big">—</dd>
-    <dt>Monthly instalment</dt><dd id="q-monthly">—</dd>
-  </dl>
-  <p class="hint">Indicative maximum. Your invoice shows the confirmed figures.</p>
-</aside>
+    <form method="post" novalidate class="card apply-card" id="apply-form">
+      {% csrf_token %}
+      {% for title, subtitle, fields in form.sections %}
+        <fieldset>
+          <legend class="section-title">
+            <span class="step-number" aria-hidden="true">{{ forloop.counter|stringformat:"02d" }}</span>
+            <span><span class="section-heading">{{ title }}</span><span class="section-sub">{{ subtitle }}</span></span>
+          </legend>
+          <div class="form-grid">
+          {% for field in fields %}
+            {% if field.name == "amount" %}
+              <div class="field span-all amount-field{% if field.errors %} has-error{% endif %}">
+                <label for="{{ field.id_for_label }}">Loan amount <strong id="amount-label">£{{ field.value|default:500 }}.00</strong></label>
+                {{ field }}
+                <div class="range-ends" aria-hidden="true"><span>£100</span><span>£1,000</span></div>
+                <p class="term-line">Repayment period: <strong>30 days</strong> · one repayment</p>
+                {% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}
+              </div>
+            {% elif field.widget_type == 'checkbox' %}
+              <div class="field check span-all{% if field.errors %} has-error{% endif %}">
+                {{ field }} <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}
+              </div>
+            {% else %}
+              <div class="field{% if field.name == 'address_line1' %} span-all{% endif %}{% if field.errors %} has-error{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="opt">(optional)</span>{% endif %}</label>
+                {{ field }}
+                {% if field.help_text %}<small class="hint">{{ field.help_text }}</small>{% endif %}
+                {% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+          </div>
+        </fieldset>
+      {% endfor %}
+      <div class="form-bottom">
+        <button type="submit" class="btn btn-lg">Submit application →</button>
+        <p class="hint">Submitting is not a lending decision. You'll get your invoice straight away.</p>
+      </div>
+    </form>
+  </div>
+
+  <aside class="quote-panel" aria-live="polite" aria-labelledby="quote-title">
+    <span class="eyebrow light">Repayment breakdown</span>
+    <h2 id="quote-title">Total due after 30 days</h2>
+    <p class="quote-total" id="q-total">—</p>
+    <dl>
+      <dt>Loan amount</dt><dd id="q-amount">—</dd>
+      <dt>Interest</dt><dd id="q-interest">—</dd>
+      <dt>Processing fee (included)</dt><dd id="q-fee">—</dd>
+      <dt>Total borrowing charge</dt><dd id="q-charge">—</dd>
+      <dt>Annualised APR</dt><dd id="q-apr">—</dd>
+    </dl>
+    <div class="side-divider"></div>
+    <p class="quote-note">30-day maximum-cost calculation; the £15 fee is included within, not added to, the total charge. Your invoice shows the confirmed figures.</p>
+    <a class="quote-link" href="{{ main_site }}/rates-and-apr">Interest rates and APR ↗</a>
+  </aside>
 </div>
 {{ pricing|json_script:"pricing" }}
 {% endblock %}
-{% block scripts %}
-<script>
-(function () {
-  const p = JSON.parse(document.getElementById('pricing').textContent);
-  const gbp = n => new Intl.NumberFormat('en-GB', {style: 'currency', currency: 'GBP'}).format(n);
-  const amount = document.getElementById('id_amount'), term = document.getElementById('id_term_months');
-  const set = (id, v) => { document.getElementById(id).textContent = v; };
-  function update() {
-    const a = Number(amount.value), t = Number(term.value);
-    if (!(a >= 100 && a <= 1000) || !t) { ['q-amount','q-fee','q-interest','q-total','q-monthly'].forEach(i => set(i, '—')); return; }
-    const charges = Math.round(Math.min(a * p.dailyRate * t * p.daysPerMonth, a * p.cap) * 100) / 100;
-    const fee = Math.min(p.fee, charges);
-    set('q-amount', gbp(a)); set('q-fee', gbp(fee)); set('q-interest', gbp(charges - fee));
-    set('q-total', gbp(a + charges)); set('q-monthly', gbp((a + charges) / t));
-  }
-  amount.addEventListener('input', update); term.addEventListener('change', update); update();
-})();
-</script>
-{% endblock %}
+{% block scripts %}<script src="{% static 'loans/apply.js' %}"></script>{% endblock %}

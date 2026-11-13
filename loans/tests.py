@@ -12,7 +12,7 @@ from .pricing import quote
 
 def valid_post(**overrides):
     data = {
-        "amount": "500", "term_months": "3", "purpose": "car_repair",
+        "amount": "500", "purpose": "car_repair",
         "title": "Ms", "first_name": "Jane", "last_name": "Doe", "date_of_birth": "1990-05-17",
         "email": "Jane.Doe@Example.com", "phone": "07700 900123", "ni_number": "jg 10 37 33 c",
         "address_line1": "10 Downing Street", "town": "London", "postcode": "sw1a2aa",
@@ -33,25 +33,33 @@ class PricingTests(TestCase):
         self.assertEqual(q.processing_fee_pence, 1500)
         self.assertEqual(q.interest_pence, 900)
         self.assertEqual(q.total_repayable_pence, 12400)
-        self.assertEqual(q.instalments[0].due_date, date(2026, 2, 28))
+        self.assertEqual(q.instalments[0].due_date, date(2026, 3, 2))  # 30 days later
 
-    def test_total_cost_cap_never_exceeds_principal(self):
-        q = quote(100000, 6)  # 0.8% x 180 days = 144% -> capped at 100%
-        self.assertEqual(q.total_charges_pence, 100000)
-        self.assertEqual(q.total_repayable_pence, 200000)
+    def test_live_calculator_example_500(self):
+        q = quote(50000, 1)
+        self.assertEqual(q.interest_pence, 10500)
+        self.assertEqual(q.processing_fee_pence, 1500)
+        self.assertEqual(q.total_charges_pence, 12000)
+        self.assertEqual(q.total_repayable_pence, 62000)
+        self.assertEqual(str(q.apr_percent), "1269.7")
 
-    def test_instalments_sum_to_total(self):
+    def test_rates_page_example_1000(self):
+        q = quote(100000, 1)  # "£225 interest and the proposed £15 fee; the repayment is £1,240"
+        self.assertEqual(q.interest_pence, 22500)
+        self.assertEqual(q.total_charges_pence, 24000)
+        self.assertEqual(q.total_repayable_pence, 124000)
+
+    def test_single_repayment_equals_total(self):
         for amount in (10000, 33333, 77777, 100000):
-            for term in (1, 3, 6):
-                q = quote(amount, term)
-                self.assertEqual(sum(i.amount_pence for i in q.instalments), q.total_repayable_pence)
-                self.assertEqual(len(q.instalments), term)
+            q = quote(amount, 1)
+            self.assertEqual(len(q.instalments), 1)
+            self.assertEqual(q.instalments[0].amount_pence, q.total_repayable_pence)
 
     def test_rejects_out_of_range(self):
         with self.assertRaises(ValueError):
             quote(9999, 1)
         with self.assertRaises(ValueError):
-            quote(10000, 2)
+            quote(10000, 3)
 
 
 class ValidatorTests(TestCase):
@@ -108,8 +116,9 @@ class ApplicationFlowTests(TestCase):
         self.assertEqual(app.account_last4, "5678")
         self.assertEqual(app.monthly_income_pence, 220050)
         self.assertEqual(app.amount_pence, 50000)
-        self.assertEqual(app.total_repayable_pence, 50000 + 36000)  # 0.8% x 90 days
-        self.assertEqual(app.repayments.count(), 3)
+        self.assertEqual(app.total_repayable_pence, 62000)  # £500 + 0.8% x 30 days
+        self.assertEqual(app.term_months, 1)
+        self.assertEqual(app.repayments.count(), 1)
         self.assertTrue(app.reference.startswith("SWL-"))
         self.assertTrue(app.invoice_number.startswith("INV-"))
 
@@ -191,3 +200,11 @@ class AdminTests(TestCase):
                              {"action": "export_csv", "_selected_action": [app.pk]})
         self.assertEqual(r["Content-Type"], "text/csv")
         self.assertNotIn(b"12345678", r.content)
+
+
+class AmountStepTests(TestCase):
+    def test_amount_must_be_a_50_pound_step(self):
+        r = self.client.post(reverse("loans:apply"), valid_post(amount="525"))
+        self.assertIn("amount", r.context["form"].errors)
+        r = self.client.post(reverse("loans:apply"), valid_post(amount="550"))
+        self.assertEqual(r.status_code, 302)

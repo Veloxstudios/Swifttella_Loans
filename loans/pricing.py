@@ -6,13 +6,14 @@ short-term credit (HCSTC) price cap (CONC 5A):
   * total charges can never exceed 100% of the amount borrowed;
   * the GBP 15 processing fee is part of the capped charge, never added to it.
 
-Months are counted as 30 days, as in the live calculator. The output is an
-indicative maximum, not a representative APR or an offer of credit.
+As on the live site, the loan is repaid in one payment due 30 days after it
+starts. The output is an indicative maximum, not a representative APR or an
+offer of credit.
 """
 
 import calendar
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 DAILY_RATE = Decimal("0.008")
@@ -22,7 +23,14 @@ DAYS_PER_MONTH = 30
 
 MIN_AMOUNT_GBP = 100
 MAX_AMOUNT_GBP = 1000
-TERM_CHOICES = (1, 3, 6)
+AMOUNT_STEP_GBP = 50
+# The live product is a single repayment due 30 days after the loan starts.
+# The field is still called term_months so existing records keep working.
+TERM_CHOICES = (1,)
+
+
+def term_label(term_months: int) -> str:
+    return f"{term_months * DAYS_PER_MONTH} days"
 
 
 @dataclass
@@ -83,7 +91,7 @@ def quote(principal_pence: int, term_months: int, start: date | None = None) -> 
     instalments = []
     for n in range(1, term_months + 1):
         amount = base + (remainder if n == term_months else 0)
-        instalments.append(Instalment(n, add_months(start, n), amount))
+        instalments.append(Instalment(n, start + timedelta(days=DAYS_PER_MONTH * n), amount))
 
     return LoanQuote(
         principal_pence=principal_pence,

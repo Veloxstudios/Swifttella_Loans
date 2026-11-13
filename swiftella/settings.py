@@ -70,6 +70,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "loans.context.site_links",
             ],
         },
     },
@@ -132,6 +133,8 @@ LENDER_NAME = os.environ.get("LENDER_NAME", "Swiftella Loans")
 LENDER_ADDRESS = os.environ.get("LENDER_ADDRESS", "United Kingdom")
 LENDER_FCA_NUMBER = os.environ.get("LENDER_FCA_NUMBER", "")
 LENDER_EMAIL = os.environ.get("LENDER_EMAIL", "")
+# Main Swiftella website, used for the header and footer links.
+MAIN_SITE_URL = os.environ.get("MAIN_SITE_URL", "https://easy-pay-loan-production.up.railway.app").rstrip("/")
 
 LOGGING = {
     "version": 1,

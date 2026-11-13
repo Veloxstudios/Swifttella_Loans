@@ -5,7 +5,7 @@ from django.db import models
 from django.utils import timezone
 
 from .fields import EncryptedCharField
-from .pricing import TERM_CHOICES, gbp
+from .pricing import TERM_CHOICES, gbp, term_label
 
 
 class Customer(models.Model):
@@ -86,7 +86,7 @@ class LoanApplication(models.Model):
 
     # Loan requested (money stored in pence).
     amount_pence = models.PositiveIntegerField()
-    term_months = models.PositiveSmallIntegerField(choices=[(t, f"{t} month{'s' if t > 1 else ''}") for t in TERM_CHOICES])
+    term_months = models.PositiveSmallIntegerField(choices=[(t, term_label(t)) for t in TERM_CHOICES])
     purpose = models.CharField(max_length=20, choices=Purpose.choices)
 
     # Pricing frozen at submission time, so later rate changes cannot alter it.
@@ -155,8 +155,16 @@ class LoanApplication(models.Model):
     def amount_display(self):
         return gbp(self.amount_pence)
 
+    @property
+    def total_repayable_display(self):
+        return gbp(self.total_repayable_pence)
+
+    @property
+    def apr_display(self):
+        return f"{self.apr_percent:,.1f}%"
+
     def __str__(self):
-        return f"{self.reference} – {gbp(self.amount_pence)} over {self.term_months}m"
+        return f"{self.reference} – {gbp(self.amount_pence)} over {term_label(self.term_months)}"
 
 
 class ScheduledRepayment(models.Model):
