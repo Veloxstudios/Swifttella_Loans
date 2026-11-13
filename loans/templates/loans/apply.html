@@ -1,0 +1,69 @@
+{% extends "loans/base.html" %}
+{% block title %}Apply for a loan | Swiftella Loans{% endblock %}
+{% block content %}
+<h1>Apply for a loan</h1>
+<p class="lede">It takes about five minutes. When you submit, you'll get a PDF invoice showing exactly what you'd repay.</p>
+
+{% if form.errors %}
+  <div class="alert" role="alert">
+    <strong>Please check the highlighted fields below.</strong>
+    {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+  </div>
+{% endif %}
+
+<div class="layout">
+<form method="post" novalidate class="card">
+  {% csrf_token %}
+  {% for title, fields in form.sections %}
+    <fieldset>
+      <legend>{{ forloop.counter }}. {{ title }}</legend>
+      {% for field in fields %}
+        <div class="field{% if field.errors %} has-error{% endif %}{% if field.widget_type == 'checkbox' %} check{% endif %}">
+          {% if field.widget_type == 'checkbox' %}
+            {{ field }} <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}{% if not field.field.required %} <span class="opt">(optional)</span>{% endif %}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}<small class="hint">{{ field.help_text }}</small>{% endif %}
+          {% for e in field.errors %}<small class="err">{{ e }}</small>{% endfor %}
+        </div>
+      {% endfor %}
+    </fieldset>
+  {% endfor %}
+  <button type="submit" class="btn">Submit application</button>
+</form>
+
+<aside class="card quote" aria-live="polite">
+  <h2>Your quote</h2>
+  <dl>
+    <dt>Amount</dt><dd id="q-amount">—</dd>
+    <dt>Processing fee</dt><dd id="q-fee">—</dd>
+    <dt>Interest</dt><dd id="q-interest">—</dd>
+    <dt>Total repayable</dt><dd id="q-total" class="big">—</dd>
+    <dt>Monthly instalment</dt><dd id="q-monthly">—</dd>
+  </dl>
+  <p class="hint">Indicative maximum. Your invoice shows the confirmed figures.</p>
+</aside>
+</div>
+{{ pricing|json_script:"pricing" }}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const p = JSON.parse(document.getElementById('pricing').textContent);
+  const gbp = n => new Intl.NumberFormat('en-GB', {style: 'currency', currency: 'GBP'}).format(n);
+  const amount = document.getElementById('id_amount'), term = document.getElementById('id_term_months');
+  const set = (id, v) => { document.getElementById(id).textContent = v; };
+  function update() {
+    const a = Number(amount.value), t = Number(term.value);
+    if (!(a >= 100 && a <= 1000) || !t) { ['q-amount','q-fee','q-interest','q-total','q-monthly'].forEach(i => set(i, '—')); return; }
+    const charges = Math.round(Math.min(a * p.dailyRate * t * p.daysPerMonth, a * p.cap) * 100) / 100;
+    const fee = Math.min(p.fee, charges);
+    set('q-amount', gbp(a)); set('q-fee', gbp(fee)); set('q-interest', gbp(charges - fee));
+    set('q-total', gbp(a + charges)); set('q-monthly', gbp((a + charges) / t));
+  }
+  amount.addEventListener('input', update); term.addEventListener('change', update); update();
+})();
+</script>
+{% endblock %}

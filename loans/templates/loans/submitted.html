@@ -1,0 +1,21 @@
+{% extends "loans/base.html" %}
+{% block title %}Application received | Swiftella Loans{% endblock %}
+{% block content %}
+<div class="card done">
+  <h1>Thank you, {{ application.customer.first_name }}.</h1>
+  <p class="lede">We've received your application <strong>{{ application.reference }}</strong>. No lending decision has been made yet; we'll email {{ application.customer.email }} with the outcome.</p>
+
+  <div class="actions">
+    <a class="btn" href="{% url 'loans:invoice' application.public_id %}?download=1">Download PDF invoice</a>
+    <a class="btn ghost" href="{% url 'loans:invoice' application.public_id %}" target="_blank" rel="noopener">View in browser</a>
+  </div>
+
+  <table class="summary">
+    <tr><th>Invoice number</th><td>{{ application.invoice_number }}</td></tr>
+    <tr><th>Amount borrowed</th><td>{{ application.amount_display }}</td></tr>
+    <tr><th>Repayment period</th><td>{{ application.get_term_months_display }}</td></tr>
+    <tr><th>Bank account</th><td>{{ application.sort_code }} · ****{{ application.account_last4 }}</td></tr>
+  </table>
+  <p class="hint">Save your invoice now. For your security, this page is only available in the browser you applied from.</p>
+</div>
+{% endblock %}
