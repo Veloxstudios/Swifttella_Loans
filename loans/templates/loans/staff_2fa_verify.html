@@ -1,0 +1,15 @@
+{% extends "loans/staff_2fa_base.html" %}
+{% block title %}Enter your code | {{ site_title }}{% endblock %}
+{% block twofa %}
+<h1>Enter your sign-in code</h1>
+<p class="lead">Open your authenticator app and enter the 6-digit code for {{ site_title }}.</p>
+{% if error %}<p class="errornote">{{ error }}</p>{% endif %}
+<form method="post" class="code-form">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <label for="code" class="sr">Code</label>
+  <input id="code" name="code" autocomplete="one-time-code" maxlength="20" required autofocus placeholder="123 456">
+  <input type="submit" value="Continue">
+</form>
+<p class="small">Lost your phone? Enter one of your backup codes instead. You have {{ backups_left }} left. If you have none left, ask an administrator to reset your two-factor sign-in.</p>
+{% endblock %}

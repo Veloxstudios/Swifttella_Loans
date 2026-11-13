@@ -11,6 +11,20 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _load_dotenv(path):
+    """Read KEY=value lines from a local .env file (git-ignored). Real environment variables win."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv(BASE_DIR / ".env")
+
+
 def env_bool(name, default=False):
     return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -44,6 +58,10 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "anymail",
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_static",
     "loans",
 ]
 
@@ -54,8 +72,11 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware",
+    "loans.twofactor.RequireStaffTwoFactorMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "loans.security.SecurityHeadersMiddleware",
 ]
 
 ROOT_URLCONF = "swiftella.urls"
@@ -70,6 +91,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "loans.context.site_links",
             ],
         },
     },
@@ -83,6 +105,14 @@ DATABASES = {
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
+}
+
+# Shared cache for rate limits. The database is used so every gunicorn worker
+# sees the same counts; `createcachetable` in the Procfile creates the table.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+    if DEBUG
+    else {"BACKEND": "django.core.cache.backends.db.DatabaseCache", "LOCATION": "swiftella_cache"}
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -111,6 +141,11 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Security hardening for production.
+# Sessions end after 30 minutes without activity and when the browser closes.
+SESSION_COOKIE_AGE = int(os.environ.get("SESSION_IDLE_SECONDS", 30 * 60))
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 X_FRAME_OPTIONS = "DENY"
@@ -123,6 +158,21 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+# Number of proxies in front of the app that add to X-Forwarded-For
+# (Railway's edge adds one). Set to 0 when not behind a proxy.
+TRUSTED_PROXIES = int(os.environ.get("TRUSTED_PROXIES", 0 if DEBUG else 1))
+
+# Two-factor sign-in for staff (authenticator app codes).
+OTP_TOTP_ISSUER = os.environ.get("LENDER_NAME", "Swiftella Loans")
+STAFF_BACKUP_CODES = 10
+
+# Rate limits.
+APPLY_RATE_LIMIT = int(os.environ.get("APPLY_RATE_LIMIT", 5))          # applications per IP...
+APPLY_RATE_WINDOW = int(os.environ.get("APPLY_RATE_WINDOW", 60 * 60))  # ...per hour
+LOGIN_MAX_FAILURES = int(os.environ.get("LOGIN_MAX_FAILURES", 5))      # failed staff sign-ins...
+LOGIN_LOCKOUT_SECONDS = int(os.environ.get("LOGIN_LOCKOUT_SECONDS", 15 * 60))  # ...locks out for 15 minutes
 
 # How long a customer's invoice download link stays valid in their session.
 INVOICE_SESSION_KEY = "swiftella_invoices"
@@ -132,6 +182,73 @@ LENDER_NAME = os.environ.get("LENDER_NAME", "Swiftella Loans")
 LENDER_ADDRESS = os.environ.get("LENDER_ADDRESS", "United Kingdom")
 LENDER_FCA_NUMBER = os.environ.get("LENDER_FCA_NUMBER", "")
 LENDER_EMAIL = os.environ.get("LENDER_EMAIL", "")
+LENDER_COMPANY_NUMBER = os.environ.get("LENDER_COMPANY_NUMBER", "")
+LENDER_ICO_NUMBER = os.environ.get("LENDER_ICO_NUMBER", "")
+# HCSTC lenders must link to at least one FCA-authorised price comparison website.
+PRICE_COMPARISON_URL = os.environ.get("PRICE_COMPARISON_URL", "")
+PRICE_COMPARISON_NAME = os.environ.get("PRICE_COMPARISON_NAME", "")
+
+# Days to keep applications that never became a loan (submitted, declined,
+# withdrawn) before `anonymise_old_applications` removes the personal data.
+DATA_RETENTION_DAYS = int(os.environ.get("DATA_RETENTION_DAYS", 365))
+# Minimum money left each month after the repayment for an application to
+# pass the affordability check (in pence).
+AFFORDABILITY_BUFFER_PENCE = int(os.environ.get("AFFORDABILITY_BUFFER_PENCE", 10000))
+# Main Swiftella website, used for the header and footer links.
+MAIN_SITE_URL = os.environ.get("MAIN_SITE_URL", "https://easy-pay-loan-production.up.railway.app").rstrip("/")
+
+# Email, sent from your own domain (see EMAIL_SETUP.md).
+#
+# EMAIL_DOMAIN     the domain customers see, e.g. swiftella.co.uk
+# EMAIL_PROVIDER   postmark, resend, brevo, mailgun, sendgrid (over their HTTPS API), or smtp
+# EMAIL_API_KEY    the provider's API key or server token
+#
+# With nothing set, local development saves each email to sent_emails/ and
+# production sends nothing; `manage.py check --deploy` warns about it.
+EMAIL_DOMAIN = os.environ.get("EMAIL_DOMAIN", "").strip().lower()
+EMAIL_PROVIDER = os.environ.get("EMAIL_PROVIDER", "").strip().lower()
+EMAIL_API_KEY = os.environ.get("EMAIL_API_KEY", "")
+EMAIL_TIMEOUT = 10
+
+# SMTP, for providers or mail servers without an API.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+
+_API_PROVIDERS = {
+    # provider: (Anymail backend, Anymail setting that holds the key)
+    "postmark": ("anymail.backends.postmark.EmailBackend", "POSTMARK_SERVER_TOKEN"),
+    "resend": ("anymail.backends.resend.EmailBackend", "RESEND_API_KEY"),
+    "brevo": ("anymail.backends.brevo.EmailBackend", "BREVO_API_KEY"),
+    "mailgun": ("anymail.backends.mailgun.EmailBackend", "MAILGUN_API_KEY"),
+    "sendgrid": ("anymail.backends.sendgrid.EmailBackend", "SENDGRID_API_KEY"),
+}
+ANYMAIL = {}
+if EMAIL_PROVIDER in _API_PROVIDERS and EMAIL_API_KEY:
+    EMAIL_BACKEND, _key_setting = _API_PROVIDERS[EMAIL_PROVIDER]
+    ANYMAIL[_key_setting] = EMAIL_API_KEY
+    if EMAIL_PROVIDER == "mailgun":
+        ANYMAIL["MAILGUN_SENDER_DOMAIN"] = os.environ.get("MAILGUN_SENDER_DOMAIN", EMAIL_DOMAIN)
+        if env_bool("MAILGUN_EU", True):  # UK/EU customer data stays on Mailgun's EU servers
+            ANYMAIL["MAILGUN_API_URL"] = "https://api.eu.mailgun.net/v3"
+elif EMAIL_PROVIDER == "smtp" and EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+elif DEBUG:
+    EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
+    EMAIL_FILE_PATH = BASE_DIR / "sent_emails"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+EMAIL_IS_CONFIGURED = EMAIL_BACKEND.startswith(("anymail.", "django.core.mail.backends.smtp"))
+
+if EMAIL_DOMAIN and not LENDER_EMAIL:
+    LENDER_EMAIL = f"support@{EMAIL_DOMAIN}"  # where customer replies go
+DEFAULT_FROM_EMAIL = (
+    os.environ.get("DEFAULT_FROM_EMAIL")
+    or f"{LENDER_NAME} <no-reply@{EMAIL_DOMAIN or 'localhost'}>"
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 LOGGING = {
     "version": 1,

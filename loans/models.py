@@ -5,7 +5,7 @@ from django.db import models
 from django.utils import timezone
 
 from .fields import EncryptedCharField
-from .pricing import TERM_CHOICES, gbp
+from .pricing import TERM_CHOICES, gbp, term_label
 
 
 class Customer(models.Model):
@@ -29,6 +29,7 @@ class Customer(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    personal_data_removed_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -86,7 +87,7 @@ class LoanApplication(models.Model):
 
     # Loan requested (money stored in pence).
     amount_pence = models.PositiveIntegerField()
-    term_months = models.PositiveSmallIntegerField(choices=[(t, f"{t} month{'s' if t > 1 else ''}") for t in TERM_CHOICES])
+    term_months = models.PositiveSmallIntegerField(choices=[(t, term_label(t)) for t in TERM_CHOICES])
     purpose = models.CharField(max_length=20, choices=Purpose.choices)
 
     # Pricing frozen at submission time, so later rate changes cannot alter it.
@@ -120,6 +121,7 @@ class LoanApplication(models.Model):
     submitted_ip = models.GenericIPAddressField(null=True, blank=True)
     submitted_at = models.DateTimeField(default=timezone.now, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
+    personal_data_removed_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-submitted_at"]
@@ -152,11 +154,34 @@ class LoanApplication(models.Model):
         return max((i.amount_pence for i in self.repayments.all()), default=0)
 
     @property
+    def left_after_repayment_pence(self):
+        """Money left in the month the loan is repaid, after essentials and the repayment."""
+        return self.disposable_income_pence - self.largest_instalment_pence
+
+    @property
+    def passes_affordability(self):
+        """FCA CONC 5.2A: the repayment must be affordable without undue difficulty.
+
+        This is a minimum check on the figures the customer gave us. Staff must
+        still verify income and check credit reference data before approving.
+        """
+        from django.conf import settings
+        return self.left_after_repayment_pence >= settings.AFFORDABILITY_BUFFER_PENCE
+
+    @property
     def amount_display(self):
         return gbp(self.amount_pence)
 
+    @property
+    def total_repayable_display(self):
+        return gbp(self.total_repayable_pence)
+
+    @property
+    def apr_display(self):
+        return f"{self.apr_percent:,.1f}%"
+
     def __str__(self):
-        return f"{self.reference} – {gbp(self.amount_pence)} over {self.term_months}m"
+        return f"{self.reference} – {gbp(self.amount_pence)} over {term_label(self.term_months)}"
 
 
 class ScheduledRepayment(models.Model):

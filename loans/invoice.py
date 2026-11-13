@@ -11,12 +11,12 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .pricing import gbp
+from .pricing import gbp, term_label
 
-BRAND = colors.HexColor("#0F4C5C")
-MUTED = colors.HexColor("#5B6770")
-RULE = colors.HexColor("#D7DEE2")
-TINT = colors.HexColor("#EEF4F6")
+BRAND = colors.HexColor("#123763")
+MUTED = colors.HexColor("#667A90")
+RULE = colors.HexColor("#DDE8F4")
+TINT = colors.HexColor("#E8F1FF")
 
 
 def _styles():
@@ -81,7 +81,7 @@ def build_invoice_pdf(application) -> bytes:
         ["Description", "Amount"],
         [f"Amount borrowed ({application.get_purpose_display().lower()})", gbp(application.amount_pence)],
         ["Processing fee (within the price cap)", gbp(application.processing_fee_pence)],
-        [f"Interest ({application.term_months} month{'s' if application.term_months > 1 else ''})", gbp(application.interest_pence)],
+        [f"Interest ({term_label(application.term_months)})", gbp(application.interest_pence)],
         ["Total cost of credit", gbp(application.total_charges_pence)],
         ["Total amount repayable", gbp(application.total_repayable_pence)],
     ]
@@ -97,7 +97,7 @@ def build_invoice_pdf(application) -> bytes:
         ("LINEBELOW", (0, 1), (-1, -2), 0.4, RULE),
         ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
     ]))
-    story += [summary, Spacer(1, 4), Paragraph(f"Annualised rate (indicative): <b>{application.apr_percent}%</b>", s["body"])]
+    story += [summary, Spacer(1, 4), Paragraph(f"Annualised APR (indicative): <b>{application.apr_display}</b>", s["body"])]
 
     story.append(Paragraph("Repayment schedule", s["h2"]))
     sched = [["Instalment", "Due date", "Amount"]] + [
