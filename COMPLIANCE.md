@@ -74,6 +74,7 @@ Status key: ✅ done in the app · ⚙️ needs a setting or task before launch 
 | Lawful basis for each use, and consent for credit searches | ✅ Separate unticked boxes for the credit check and for marketing. ⚠️ Confirm the lawful bases with your DPO. |
 | Encryption of the most sensitive data | ✅ NI and bank account numbers are encrypted at rest (Fernet). The admin and CSV export only ever show the last digits. |
 | Storage limitation | ✅ `python manage.py anonymise_old_applications --apply` removes personal data from applications that didn't become a loan after `DATA_RETENTION_DAYS` (default 365). ⚙️ Schedule it daily (see README). ⚠️ Approved loans need their own retention rule, typically 6 years after the account closes. |
+| Confirmation emails share only what's needed | ✅ The email shows the loan figures and the last 4 digits of the bank account, never the NI or full account number. It attaches the invoice, says no decision has been made and includes the risk warning and an anti-fraud notice. Each send or failure is recorded in the audit trail. |
 | Accountability: who accessed what | ✅ The audit trail records submissions, staff views, status changes, CSV exports, invoice downloads and data removal. Nobody can delete applications or customers through the admin. |
 | Data subject requests (access, correction, deletion) | ⚠️ No self-service yet. Handle manually through the admin, and record what you did. |
 | Data Protection Impact Assessment (DPIA) | ⚠️ Required for credit scoring and large-scale financial data. Business task. |

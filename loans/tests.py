@@ -494,3 +494,35 @@ class StaffTwoFactorAdminTests(TestCase):
         self.client.post(reverse("admin:auth_user_changelist"),
                          {"action": "reset_two_factor", "_selected_action": [colleague.pk]})
         self.assertFalse(TOTPDevice.objects.filter(user=colleague).exists())
+
+
+class ConfirmationEmailTests(TestCase):
+    def test_customer_gets_an_email_with_the_invoice(self):
+        from django.core import mail
+        self.client.post(reverse("loans:apply"), valid_post())
+        app = LoanApplication.objects.get()
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, [app.customer.email])
+        self.assertIn(app.reference, msg.subject)
+        self.assertIn("No lending decision has been made yet", msg.body)
+        self.assertIn("Late repayment can cause you serious money problems", msg.body)
+        html = msg.alternatives[0][0]
+        self.assertIn(app.total_repayable_display, html)
+        name, content, mimetype = msg.attachments[0]
+        self.assertEqual(name, f"{app.invoice_number}.pdf")
+        self.assertTrue(content.startswith(b"%PDF"))
+        # Never the full NI or bank account number.
+        for secret in (app.customer.ni_number, app.account_number):
+            self.assertNotIn(secret, msg.body)
+            self.assertNotIn(secret, html)
+        self.assertTrue(AuditEvent.objects.filter(application=app, action="confirmation_email_sent").exists())
+
+    def test_email_failure_does_not_lose_the_application(self):
+        from unittest import mock
+        with mock.patch("django.core.mail.EmailMultiAlternatives.send", side_effect=OSError("smtp down")), \
+                self.assertLogs("loans.emails", "ERROR"):
+            r = self.client.post(reverse("loans:apply"), valid_post())
+        app = LoanApplication.objects.get()
+        self.assertRedirects(r, reverse("loans:submitted", args=[app.public_id]))
+        self.assertTrue(AuditEvent.objects.filter(application=app, action="confirmation_email_failed").exists())

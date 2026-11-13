@@ -51,6 +51,9 @@ DJANGO_DEBUG=1 python manage.py test loans
    python manage.py anonymise_old_applications --apply
    ```
    Run it without `--apply` to see what it would do.
+6. Set up email so customers get their confirmation and invoice. Use any SMTP provider (Postmark, SendGrid, Mailgun, Microsoft 365) and set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` and `DEFAULT_FROM_EMAIL`. Send from a domain you own, with SPF and DKIM set up, or emails will land in spam. Railway only allows outgoing SMTP on paid plans. Until `EMAIL_HOST` is set, no emails are sent.
+
+Locally, each email is saved as a `.log` file in `sent_emails/` instead of being sent. It holds the full message, including the HTML and the attached invoice.
 
 ## Before taking real customers
 
@@ -60,4 +63,3 @@ See **[COMPLIANCE.md](COMPLIANCE.md)** for the full FCA, data protection and sec
 - Credit reference agency checks and income verification. Today's affordability check only uses what the customer tells us.
 - Pre-contract information (SECCI), the credit agreement and the 14-day withdrawal right.
 - Bank details are only format-checked. Use a modulus check / Confirmation of Payee before paying out.
-- No confirmation emails are sent yet.

@@ -182,6 +182,26 @@ AFFORDABILITY_BUFFER_PENCE = int(os.environ.get("AFFORDABILITY_BUFFER_PENCE", 10
 # Main Swiftella website, used for the header and footer links.
 MAIN_SITE_URL = os.environ.get("MAIN_SITE_URL", "https://easy-pay-loan-production.up.railway.app").rstrip("/")
 
+# Email. Production sends through any SMTP provider (Postmark, SendGrid,
+# Mailgun, Microsoft 365...). With no EMAIL_HOST set, local development
+# saves each email as a file in sent_emails/ so you can read it, and
+# production sends nothing (and logs a warning) rather than failing.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_TIMEOUT = 10
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+elif DEBUG:
+    EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
+    EMAIL_FILE_PATH = BASE_DIR / "sent_emails"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.dummy.EmailBackend"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL") or f"{LENDER_NAME} <{LENDER_EMAIL or 'no-reply@localhost'}>"
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

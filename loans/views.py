@@ -3,6 +3,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from .emails import send_application_received
 from .forms import LoanApplicationForm
 from .invoice import build_invoice_pdf
 from .models import LoanApplication, record
@@ -31,6 +32,7 @@ def apply(request):
         except IdentityMismatch:
             form.add_error("email", "This email address is already linked to different personal details. Please contact us.")
         else:
+            send_application_received(application, ip=client_ip(request))
             owned = request.session.get(settings.INVOICE_SESSION_KEY, [])
             request.session[settings.INVOICE_SESSION_KEY] = (owned + [str(application.public_id)])[-20:]
             return redirect("loans:submitted", public_id=application.public_id)
