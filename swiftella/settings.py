@@ -11,6 +11,20 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _load_dotenv(path):
+    """Read KEY=value lines from a local .env file (git-ignored). Real environment variables win."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv(BASE_DIR / ".env")
+
+
 def env_bool(name, default=False):
     return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -192,7 +206,7 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 EMAIL_TIMEOUT = 10
-if EMAIL_HOST:
+if EMAIL_HOST and (EMAIL_HOST_PASSWORD or not DEBUG):
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 elif DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
