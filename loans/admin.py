@@ -199,3 +199,42 @@ class LoanApplicationAdmin(admin.ModelAdmin):
                         a.customer.email, a.customer.postcode, a.amount_pence / 100, a.term_months,
                         a.total_repayable_pence / 100, a.monthly_income_pence / 100, a.sort_code, a.account_last4]])
         return response
+
+
+# ---------- Staff two-factor sign-in ----------
+# django-otp's own admin pages show other people's backup codes and app secrets,
+# so they are removed. Staff reset a colleague's 2FA with the action below instead.
+from django.contrib.auth import get_user_model  # noqa: E402
+from django.contrib.auth.admin import UserAdmin  # noqa: E402
+from django_otp import user_has_device  # noqa: E402
+from django_otp.plugins.otp_static.models import StaticDevice  # noqa: E402
+from django_otp.plugins.otp_totp.models import TOTPDevice  # noqa: E402
+
+for _model in (TOTPDevice, StaticDevice):
+    if admin.site.is_registered(_model):
+        admin.site.unregister(_model)
+
+User = get_user_model()
+if admin.site.is_registered(User):
+    admin.site.unregister(User)
+
+
+@admin.register(User)
+class StaffUserAdmin(UserAdmin):
+    list_display = [*UserAdmin.list_display, "two_factor"]
+    actions = ["reset_two_factor"]
+
+    @admin.display(description="2FA set up", boolean=True)
+    def two_factor(self, obj):
+        return user_has_device(obj)
+
+    @admin.action(description="Reset two-factor sign-in (they set up a new app at next sign-in)", permissions=["change"])
+    def reset_two_factor(self, request, queryset):
+        if not request.user.is_superuser:
+            self.message_user(request, "Only superusers can reset two-factor sign-in.", level="error")
+            return
+        for user in queryset:
+            TOTPDevice.objects.filter(user=user).delete()
+            StaticDevice.objects.filter(user=user).delete()
+        self.message_user(request, f"Reset two-factor sign-in for {queryset.count()} user(s). "
+                                   "Check who asked for this: a reset lets the next person with the password set up a new app.")

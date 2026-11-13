@@ -23,6 +23,12 @@ python manage.py runserver
 
 Open http://127.0.0.1:8000/ for the form and http://127.0.0.1:8000/staff/ for the admin.
 
+Staff must use **two-factor sign-in**. The first time you sign in to `/staff/`, scan the QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password…) and save the backup codes. If someone loses their phone, a superuser can use **Reset two-factor sign-in** on the Users page, or run:
+
+```bash
+python manage.py reset_staff_2fa <username>
+```
+
 ## Tests
 
 ```bash
@@ -51,7 +57,6 @@ DJANGO_DEBUG=1 python manage.py test loans
 See **[COMPLIANCE.md](COMPLIANCE.md)** for the full FCA, data protection and security checklist: what the app already does, which settings to fill in, and what still needs building or signing off. The most important open items:
 
 - FCA authorisation, and the status statement (`LENDER_FCA_NUMBER`) and price comparison link (`PRICE_COMPARISON_URL`) that come with it.
-- Two-factor sign-in for staff.
 - Credit reference agency checks and income verification. Today's affordability check only uses what the customer tells us.
 - Pre-contract information (SECCI), the credit agreement and the 14-day withdrawal right.
 - Bank details are only format-checked. Use a modulus check / Confirmation of Payee before paying out.

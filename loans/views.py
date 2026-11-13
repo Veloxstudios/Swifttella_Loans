@@ -12,10 +12,11 @@ from .services import IdentityMismatch, create_application
 
 
 def _owned(request, public_id) -> LoanApplication:
-    """Return the application if this browser session submitted it, or the user is staff."""
+    """Return the application if this browser session submitted it, or the user is staff who passed 2FA."""
     application = get_object_or_404(LoanApplication.objects.select_related("customer"), public_id=public_id)
     allowed = str(public_id) in request.session.get(settings.INVOICE_SESSION_KEY, [])
-    if not (allowed or (request.user.is_authenticated and request.user.is_staff)):
+    staff = request.user.is_authenticated and request.user.is_staff and request.user.is_verified()
+    if not (allowed or staff):
         raise Http404
     return application
 

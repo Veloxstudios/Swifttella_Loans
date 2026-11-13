@@ -8,6 +8,9 @@ from django.core.management import call_command
 from django.test import TestCase as DjangoTestCase
 from django.test import override_settings
 from django.utils import timezone
+from django_otp.oath import TOTP
+from django_otp.plugins.otp_static.models import StaticDevice
+from django_otp.plugins.otp_totp.models import TOTPDevice
 from django.urls import reverse
 
 from . import validators as v
@@ -21,6 +24,14 @@ class TestCase(DjangoTestCase):
     def setUp(self):
         cache.clear()
         super().setUp()
+
+    def login_staff(self, user):
+        """Sign in as staff and pass two-factor with a one-off backup code."""
+        self.client.force_login(user)
+        device, _ = StaticDevice.objects.get_or_create(user=user, name="test backup codes")
+        device.token_set.create(token="testcode1")
+        r = self.client.post(reverse("staff_2fa_verify"), {"code": "testcode1"})
+        assert r.status_code == 302, r.status_code
 
 
 def valid_post(**overrides):
@@ -167,7 +178,7 @@ class ApplicationFlowTests(TestCase):
         app = LoanApplication.objects.get()
         self.client.cookies.clear()
         staff = get_user_model().objects.create_user("staff", password="a-long-test-password", is_staff=True)
-        self.client.force_login(staff)
+        self.login_staff(staff)
         self.assertEqual(self.client.get(reverse("loans:invoice", args=[app.public_id])).status_code, 200)
 
     def test_invalid_submission_shows_errors_and_saves_nothing(self):
@@ -203,7 +214,7 @@ class AdminTests(TestCase):
         self.client.post(reverse("loans:apply"), valid_post())
         app = LoanApplication.objects.get()
         admin = get_user_model().objects.create_superuser("boss", "boss@example.com", "a-long-test-password")
-        self.client.force_login(admin)
+        self.login_staff(admin)
         r = self.client.get(reverse("admin:loans_loanapplication_change", args=[app.pk]))
         self.assertContains(r, "****5678")
         self.assertNotContains(r, "12345678")
@@ -313,7 +324,7 @@ class StaffControlsTests(TestCase):
         # About £2,200 in and £2,150 out leaves about £50, but the repayment is £620.
         app = self.make_app(monthly_housing="1500", monthly_credit="50", monthly_other="600")
         self.assertFalse(app.passes_affordability)
-        self.client.force_login(self.admin)
+        self.login_staff(self.admin)
         r = self.set_status(app, "approved")
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "fails the affordability check")
@@ -323,7 +334,7 @@ class StaffControlsTests(TestCase):
     def test_affordable_application_can_be_approved(self):
         app = self.make_app(monthly_housing="500", monthly_credit="0", monthly_other="300")
         self.assertTrue(app.passes_affordability)
-        self.client.force_login(self.admin)
+        self.login_staff(self.admin)
         r = self.set_status(app, "approved")
         self.assertEqual(r.status_code, 302)
         app.refresh_from_db()
@@ -332,7 +343,7 @@ class StaffControlsTests(TestCase):
 
     def test_nobody_can_delete_applications_or_customers(self):
         app = self.make_app()
-        self.client.force_login(self.admin)
+        self.login_staff(self.admin)
         r = self.client.post(reverse("admin:loans_loanapplication_delete", args=[app.pk]), {"post": "yes"})
         self.assertEqual(r.status_code, 403)
         r = self.client.post(reverse("admin:loans_customer_delete", args=[app.customer.pk]), {"post": "yes"})
@@ -341,7 +352,7 @@ class StaffControlsTests(TestCase):
 
     def test_staff_views_are_recorded(self):
         app = self.make_app()
-        self.client.force_login(self.admin)
+        self.login_staff(self.admin)
         self.client.get(reverse("admin:loans_loanapplication_change", args=[app.pk]))
         self.assertTrue(AuditEvent.objects.filter(application=app, action="viewed_by_staff", actor="boss").exists())
 
@@ -376,3 +387,110 @@ class RetentionTests(TestCase):
         app.refresh_from_db()
         self.assertIsNone(app.personal_data_removed_at)
         self.assertEqual(app.customer.first_name, "Jane")
+
+
+def totp_now(device):
+    return TOTP(device.bin_key, device.step, device.t0, device.digits, device.drift).token()
+
+
+class StaffTwoFactorTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_superuser("boss", "boss@example.com", "a-long-test-password")
+
+    def test_password_alone_does_not_reach_the_admin(self):
+        self.client.force_login(self.user)
+        r = self.client.get(reverse("admin:loans_loanapplication_changelist"))
+        self.assertRedirects(r, reverse("staff_2fa_setup") + "?next=%2Fstaff%2Floans%2Floanapplication%2F",
+                             fetch_redirect_response=False)
+
+    def test_password_alone_cannot_open_invoices(self):
+        self.client.post(reverse("loans:apply"), valid_post())
+        app = LoanApplication.objects.get()
+        self.client.cookies.clear()
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("loans:invoice", args=[app.public_id])).status_code, 404)
+
+    def test_setup_with_authenticator_app(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("staff_2fa_setup"))
+        self.assertContains(page, "data:image/svg+xml;base64,")
+        device = TOTPDevice.objects.get(user=self.user, confirmed=False)
+
+        bad = self.client.post(reverse("staff_2fa_setup"), {"code": "000000" if totp_now(device) != 0 else "111111"})
+        self.assertContains(bad, "didn&#x27;t match")
+        too_soon = self.client.post(reverse("staff_2fa_setup"), {"code": f"{totp_now(device):06d}"})
+        self.assertContains(too_soon, "wait a few seconds")
+        device.refresh_from_db()
+        device.throttle_reset()  # django-otp briefly blocks retries after a wrong code; this is the wait
+
+        r = self.client.post(reverse("staff_2fa_setup"), {"code": f"{totp_now(device):06d}"})
+        self.assertContains(r, "Two-factor sign-in is on")
+        self.assertEqual(len(r.context["codes"]), 10)
+        device.refresh_from_db()
+        self.assertTrue(device.confirmed)
+        self.assertEqual(self.client.get(reverse("admin:index")).status_code, 200)
+
+    def test_returning_staff_must_enter_a_code(self):
+        TOTPDevice.objects.create(user=self.user, name="phone", confirmed=True)
+        self.client.force_login(self.user)
+        r = self.client.get(reverse("admin:index"))
+        self.assertRedirects(r, reverse("staff_2fa_verify") + "?next=%2Fstaff%2F", fetch_redirect_response=False)
+        # Someone with an app set up can't start a new setup to get around it.
+        r = self.client.get(reverse("staff_2fa_setup"))
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.url.startswith(reverse("staff_2fa_verify")))
+
+    def test_backup_codes_work_once(self):
+        device = StaticDevice.objects.create(user=self.user, name="Backup codes")
+        device.token_set.create(token="abcd1234")
+        self.client.force_login(self.user)
+        r = self.client.post(reverse("staff_2fa_verify"), {"code": "abcd1234"})
+        self.assertEqual(r.status_code, 302)
+        self.client.logout()
+        self.client.force_login(self.user)
+        r = self.client.post(reverse("staff_2fa_verify"), {"code": "abcd1234"})
+        self.assertContains(r, "didn&#x27;t work")
+
+    @override_settings(LOGIN_MAX_FAILURES=3)
+    def test_wrong_codes_lock_out(self):
+        TOTPDevice.objects.create(user=self.user, name="phone", confirmed=True)
+        self.client.force_login(self.user)
+        for _ in range(3):
+            self.client.post(reverse("staff_2fa_verify"), {"code": "000000"})
+        r = self.client.post(reverse("staff_2fa_verify"), {"code": "000000"})
+        self.assertEqual(r.status_code, 429)
+
+    def test_redirect_after_code_stays_on_this_site(self):
+        device = StaticDevice.objects.create(user=self.user, name="Backup codes")
+        device.token_set.create(token="abcd1234")
+        self.client.force_login(self.user)
+        r = self.client.post(reverse("staff_2fa_verify"), {"code": "abcd1234", "next": "https://evil.example/"})
+        self.assertEqual(r.url, reverse("admin:index"))
+
+    def test_reset_command_removes_devices(self):
+        TOTPDevice.objects.create(user=self.user, name="phone", confirmed=True)
+        StaticDevice.objects.create(user=self.user, name="Backup codes")
+        call_command("reset_staff_2fa", "boss", stdout=quiet())
+        self.assertFalse(TOTPDevice.objects.filter(user=self.user).exists())
+        self.assertFalse(StaticDevice.objects.filter(user=self.user).exists())
+
+
+class StaffTwoFactorAdminTests(TestCase):
+    def test_otp_secret_pages_are_not_in_the_admin(self):
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "a-long-test-password")
+        self.login_staff(boss)
+        from django.urls import NoReverseMatch
+        with self.assertRaises(NoReverseMatch):
+            reverse("admin:otp_static_staticdevice_changelist")
+        with self.assertRaises(NoReverseMatch):
+            reverse("admin:otp_totp_totpdevice_changelist")
+
+    def test_superuser_can_reset_a_colleagues_2fa(self):
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "a-long-test-password")
+        colleague = get_user_model().objects.create_user("sam", password="a-long-test-password", is_staff=True)
+        TOTPDevice.objects.create(user=colleague, name="phone", confirmed=True)
+        self.login_staff(boss)
+        self.client.post(reverse("admin:auth_user_changelist"),
+                         {"action": "reset_two_factor", "_selected_action": [colleague.pk]})
+        self.assertFalse(TOTPDevice.objects.filter(user=colleague).exists())

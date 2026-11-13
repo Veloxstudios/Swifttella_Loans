@@ -44,6 +44,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_otp",
+    "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_static",
     "loans",
 ]
 
@@ -54,6 +57,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_otp.middleware.OTPMiddleware",
+    "loans.twofactor.RequireStaffTwoFactorMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "loans.security.SecurityHeadersMiddleware",
@@ -143,6 +148,10 @@ if not DEBUG:
 # Number of proxies in front of the app that add to X-Forwarded-For
 # (Railway's edge adds one). Set to 0 when not behind a proxy.
 TRUSTED_PROXIES = int(os.environ.get("TRUSTED_PROXIES", 0 if DEBUG else 1))
+
+# Two-factor sign-in for staff (authenticator app codes).
+OTP_TOTP_ISSUER = os.environ.get("LENDER_NAME", "Swiftella Loans")
+STAFF_BACKUP_CODES = 10
 
 # Rate limits.
 APPLY_RATE_LIMIT = int(os.environ.get("APPLY_RATE_LIMIT", 5))          # applications per IP...

@@ -94,7 +94,7 @@ Status key: ✅ done in the app · ⚙️ needs a setting or task before launch 
 | Staff sign-in lockout | ✅ 5 failures locks that username and IP address out for 15 minutes. |
 | IP address can't be faked through `X-Forwarded-For` | ✅ Only the address added by Railway's proxy is trusted (`TRUSTED_PROXIES`). |
 | Strong staff passwords (12+ characters, not common) | ✅ |
-| Two-factor sign-in for staff | ⚠️ **Strongly recommended before launch.** Staff can see customer financial data. Add `django-otp` or put `/staff/` behind an identity provider with MFA. |
+| Two-factor sign-in for staff | ✅ Every staff sign-in needs a code from an authenticator app (TOTP) after the password. New staff are sent to a setup page with a QR code and 10 single-use backup codes. Wrong codes lock out after 5 tries. Staff invoice access also needs 2FA. A lost phone is reset with the Users page action or `manage.py reset_staff_2fa <username>`. |
 | Limit staff permissions (not everyone a superuser) | ⚙️ Create a "Loan reviewers" group with only the permissions it needs. |
 | Encryption key backed up and kept separately from the database | ⚙️ `FIELD_ENCRYPTION_KEY`. Losing it makes NI and account numbers unrecoverable. |
 | Database backups, encrypted, restore tested | ⚙️ Railway Postgres backups. |
