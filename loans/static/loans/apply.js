@@ -103,112 +103,54 @@
     fill('last_name', words.slice(1).join(' '));
   }
 
-  /* Label words people commonly use -> what to do with the value. */
-  const LABELS = [
-    [/^(full )?name$|^applicant( name)?$|^customer( name)?$/, v => fillName(v)],
-    [/^(first|fore|given) ?name$|^forename$/, v => fill('first_name', v)],
-    [/^(last|sur|family) ?name$|^surname$/, v => fill('last_name', v)],
-    [/^title$/, v => fill('title', v.replace(/\.$/, ''))],
-    [/^(dob|d\.o\.b|date of birth|birth ?date|birthday|born)$/, v => fill('date_of_birth', isoDate(v))],
-    [/^e-?mail( address)?$/, v => fill('email', v)],
-    [/^(phone|mobile|tel|telephone|phone number|mobile number|contact number|number)$/, v => fill('phone', v)],
-    [/^(ni|nino|ni ?(no|number)|national insurance( number| no)?)$/, v => fill('ni_number', v)],
-    [/^(address|home address|full address|current address|address \(full\))$/, v => fillAddress(v)],
-    [/^(address line ?1|street|street address|house|line 1)$/, v => fill('address_line1', v)],
-    [/^(address line ?2|line 2|flat)$/, v => fill('address_line2', v)],
-    [/^(town|city|town ?\/ ?city|town or city|post ?town)$/, v => fill('town', v)],
-    [/^(county|region)$/, v => fill('county', v)],
-    [/^(post ?code|zip|zip code)$/, v => fill('postcode', postcodeOf(v) || v)],
-    [/^years( at (this |current )?address)?$|^time at address$/, v => fill('years_at_address', v.replace(/[^\d]/g, ''))],
-    [/^(employment|employment status|work status|status)$/, v => fill('employment_status', v)],
-    [/^(employer|employer name|company|works at)$/, v => fill('employer_name', v)],
-    [/^(housing|housing status|residential status|home owner|homeowner)$/, v => fill('housing_status', v)],
-    [/^((monthly )?(income|salary|take[- ]home( pay)?|net income|wages))$/, v => fill('monthly_income', money(v))],
-    [/^((monthly )?(rent|mortgage|rent ?\/ ?mortgage|rent or mortgage|housing costs?))$/, v => fill('monthly_housing', money(v))],
-    [/^((monthly )?(credit|credit repayments|debt|debts|loan repayments))$/, v => fill('monthly_credit', money(v))],
-    [/^((monthly )?(other|other spending|bills|outgoings|essential spending|spending))$/, v => fill('monthly_other', money(v))],
-    [/^(account (holder|name)|name on (the )?account|account holder name)$/, v => fill('account_holder_name', v)],
-    [/^(bank|bank name)$/, v => fill('bank_name', v)],
-    [/^(sort ?code|sc)$/, v => fill('sort_code', v)],
-    [/^(account ?(number|no)|acc(ount)? ?(no|num)|a\/c( no)?)$/, v => fill('account_number', v.replace(/\D/g, ''))],
-    [/^(amount|loan amount|borrow|amount to borrow)$/, v => {
-      const n = Math.round(Number(money(v)) / 50) * 50;
-      if (n) fill('amount', Math.min(1000, Math.max(100, n)));
-    }],
-    [/^(purpose|reason|loan purpose|what for)$/, v => fill('purpose', v)],
-  ];
-
-  function readPasted(text) {
-    filled = [];
-    const lines = text.replace(/\r/g, '').split('\n');
-    const leftover = [];
-    for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^\s*([A-Za-z][A-Za-z .\/()'-]{0,38}?)\s*[:=]\s*(.*)$/);
-      const label = m && m[1].toLowerCase().replace(/\s+/g, ' ').trim();
-      const rule = label && LABELS.find(([re]) => re.test(label));
-      if (!rule) { leftover.push(lines[i]); continue; }
-      let value = m[2].trim();
-      // An "Address:" label followed by lines of address underneath it.
-      if (/address/.test(label) && rule[1] === LABELS[8][1]) {
-        while (i + 1 < lines.length && lines[i + 1].trim() && !/^\s*[A-Za-z][A-Za-z .\/()'-]{0,38}?\s*[:=]/.test(lines[i + 1])) {
-          value += (value ? '\n' : '') + lines[++i].trim();
-          if (POSTCODE.test(lines[i])) break;
-        }
-      }
-      if (value) rule[1](value);
-    }
-
-    // Anything without a label: pick out the values we can recognise on sight.
-    let rest = leftover.join('\n');
-    const take = (re, name, fn) => {
-      if (filled.includes(name)) return;
-      const m = rest.match(re);
-      if (!m) return;
-      if (fill(name, fn ? fn(m) : m[0])) rest = rest.replace(m[0], ' ');
-    };
-    take(EMAIL, 'email');
-    take(NI, 'ni_number', m => m.slice(1, 6).join('').toUpperCase());
-    take(DATE, 'date_of_birth', m => isoDate(m[0]));
-    take(SORT, 'sort_code', m => `${m[1]}-${m[2]}-${m[3]}`);
-    take(PHONE, 'phone');
-    take(ACCOUNT, 'account_number');
-    // A line that is just two to four words, like "Jane Smith", near the top is probably the name.
-    if (!filled.includes('first_name')) {
-      const nameLine = rest.split('\n').map(s => s.trim()).filter(Boolean)[0];
-      if (nameLine && /^((mr|mrs|miss|ms|mx|dr)\.?\s+)?[A-Za-z'’-]+(\s+[A-Za-z'’-]+){1,3}$/i.test(nameLine) && !/\b(street|road|lane|avenue|close|drive|flat)\b/i.test(nameLine)) {
-        fillName(nameLine);
-        rest = rest.replace(nameLine, ' ');
-      }
-    }
-    if (!filled.includes('postcode')) {
-      const restLines = rest.split('\n').map(s => s.trim());
-      const at = restLines.findIndex(l => POSTCODE.test(l));
-      if (at >= 0) {
-        // Use the postcode line plus the address lines just above it.
-        let start = at;
-        while (start > 0 && restLines[start - 1] && !/[:=@]/.test(restLines[start - 1]) && at - start < 4) start--;
-        fillAddress(restLines.slice(start, at + 1).join('\n'));
-      }
-    }
-    return filled.length;
+  /* Small "Paste" button beside each text box: pastes from the clipboard into that one field. */
+  const PASTE_SKIP = ['checkbox', 'radio', 'range', 'hidden', 'file', 'submit', 'button', 'password'];
+  function applyPaste(el, text) {
+    text = text.trim();
+    if (!text) return false;
+    const name = el.name;
+    if (name === 'address_line1' && (/[,\n]/.test(text) || POSTCODE.test(text))) { fillAddress(text); return true; }
+    if (name === 'first_name' && /\s/.test(text) && !form.elements.last_name.value) { fillName(text); return true; }
+    if (name === 'date_of_birth') return fill(name, isoDate(text) || text);
+    if (el.type === 'number' || /^monthly_/.test(name)) return fill(name, money(text) || text);
+    return fill(name, text.split('\n')[0]);
   }
-
-  const status = $('paste-status');
-  $('paste-fill').addEventListener('click', () => {
-    const text = $('paste-box').value;
-    if (!text.trim()) { status.textContent = 'Paste your details into the box first.'; status.className = 'paste-status is-warn'; return; }
-    const n = readPasted(text);
-    if (n) {
-      status.textContent = `Filled ${n} field${n === 1 ? '' : 's'}. Please check them below.`;
-      status.className = 'paste-status is-ok';
-      const first = form.elements[filled[0]];
-      if (first) first.closest('fieldset').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else {
-      status.textContent = "We couldn't recognise any details. Try putting each one on its own line, like \"Email: you@example.com\".";
-      status.className = 'paste-status is-warn';
-    }
+  [...form.elements].forEach(el => {
+    if (el.tagName !== 'INPUT' || PASTE_SKIP.includes(el.type) || !el.name) return;
+    const row = document.createElement('div');
+    row.className = 'input-row';
+    el.parentNode.insertBefore(row, el);
+    row.appendChild(el);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'paste-btn';
+    btn.textContent = 'Paste';
+    btn.setAttribute('aria-label', 'Paste into ' + ((form.querySelector('label[for="' + el.id + '"]') || {}).textContent || el.name).replace(/\(optional\)/, '').trim());
+    btn.addEventListener('click', async () => {
+      let ok = false;
+      try { ok = applyPaste(el, await navigator.clipboard.readText()); } catch (e) { /* blocked: fall through */ }
+      if (!ok) { el.focus(); btn.textContent = 'Press Ctrl+V'; setTimeout(() => { btn.textContent = 'Paste'; }, 2200); }
+    });
+    /* The Paste button stays tucked away behind a small "<" tab; clicking it slides the button out. */
+    const reveal = document.createElement('div');
+    reveal.className = 'paste-reveal';
+    reveal.appendChild(btn);
+    btn.tabIndex = -1;
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'paste-tab';
+    tab.textContent = '<';
+    tab.setAttribute('aria-expanded', 'false');
+    tab.setAttribute('aria-label', 'Show paste button');
+    tab.addEventListener('click', () => {
+      const open = row.classList.toggle('is-open');
+      tab.setAttribute('aria-expanded', String(open));
+      tab.setAttribute('aria-label', open ? 'Hide paste button' : 'Show paste button');
+      btn.tabIndex = open ? 0 : -1;
+    });
+    row.appendChild(reveal);
+    row.appendChild(tab);
   });
-  $('paste-clear').addEventListener('click', () => { $('paste-box').value = ''; status.textContent = ''; $('paste-box').focus(); });
 
   /* Paste a whole address straight into "Address line 1" and it is split up. */
   const line1 = form.elements.address_line1;

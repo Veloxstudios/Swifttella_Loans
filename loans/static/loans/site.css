@@ -131,14 +131,21 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 
 .term-line { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 .term-line strong { color: var(--heading); }
 
-/* ---------- Paste box ---------- */
-.paste-card { padding-bottom: 28px; }
-.paste-card .section-title { margin-bottom: 16px; }
-.paste-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0 6px; }
-.paste-status { font-size: 13px; font-weight: 700; }
-.paste-status.is-ok { color: var(--ok); }
-.paste-status.is-warn { color: var(--err); }
-.paste-card .hint { margin: 6px 0 0; }
+/* ---------- Paste buttons beside text boxes (tucked behind a "<" tab) ---------- */
+.input-row { display: flex; align-items: stretch; gap: 0; }
+.input-row > input { flex: 1; min-width: 0; }
+.paste-reveal { flex: none; display: flex; overflow: hidden; max-width: 0; opacity: 0; margin-left: 0;
+  transition: max-width .3s ease, opacity .25s ease, margin-left .3s ease; }
+.input-row.is-open .paste-reveal { max-width: 90px; opacity: 1; margin-left: 8px; }
+.paste-btn { flex: none; font: 700 12px/1 var(--font); color: var(--brand); background: var(--white); border: 1px solid var(--field-line);
+  border-radius: 10px; padding: 0 12px; cursor: pointer; white-space: nowrap; }
+.paste-btn:hover { background: #edf2f8; }
+.paste-btn:focus-visible, .paste-tab:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(36, 88, 166, .14); border-color: var(--brand); }
+.paste-tab { flex: none; width: 22px; margin-left: 6px; padding: 0; font: 700 14px/1 var(--font); color: var(--hint); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; cursor: pointer; transition: transform .3s ease, color .2s ease, background .2s ease; }
+.paste-tab:hover { color: var(--brand); background: #edf2f8; }
+.input-row.is-open .paste-tab { transform: rotate(180deg); color: var(--brand); }
+@media (prefers-reduced-motion: reduce) { .paste-reveal, .paste-tab { transition: none; } }
 
 /* ---------- Bottom of form ---------- */
 .form-bottom { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 26px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
