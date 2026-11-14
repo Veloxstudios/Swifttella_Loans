@@ -1,0 +1,29 @@
+{% autoescape off %}Hi {{ customer.first_name }},
+
+Thank you for applying to {{ lender_name }}. We've received your application.
+
+No lending decision has been made yet. We'll check your details and email you with the outcome. You don't need to do anything for now.
+
+YOUR APPLICATION
+Reference:        {{ application.reference }}
+Invoice number:   {{ application.invoice_number }}
+Amount borrowed:  {{ application.amount_display }}
+Repayment period: {{ application.get_term_months_display }}, one repayment{% if due_date %}
+Repayment due:    {{ due_date|date:"j F Y" }}{% endif %}
+Annualised APR:   {{ application.apr_display }}
+Total to repay:   {{ application.total_repayable_display }}
+Paid into:        account ending {{ application.account_last4 }}
+
+Your invoice is attached as a PDF. It is not a credit agreement. If your loan is approved, we'll send you the agreement to read before you sign.
+
+If you didn't make this application, or anything above is wrong, reply to this email or contact us straight away.
+
+Keep safe: we will never ask for your online banking password, PIN or a one-time code by email or phone.
+
+Late repayment can cause you serious money problems. For help, go to moneyhelper.org.uk.
+
+{{ lender_name }}
+{{ lender_address }}{% if fca_number %}
+Authorised and regulated by the Financial Conduct Authority (FRN {{ fca_number }}).{% endif %}
+{{ main_site }}
+{% endautoescape %}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Application received</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f8fd;font-family:Arial,Helvetica,sans-serif;color:#1d2b3e;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f8fd;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+  <tr><td style="padding:0 4px 16px;font-size:20px;font-weight:bold;color:#123763;">{{ lender_name }}</td></tr>
+
+  <tr><td style="background:#ffffff;border:1px solid #dde8f4;border-radius:20px;padding:28px 24px;">
+    <p style="margin:0 0 6px;font-size:12px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:#2458a6;">Application received</p>
+    <h1 style="margin:0 0 14px;font-size:24px;line-height:1.25;color:#123763;">Thank you, {{ customer.first_name }}.</h1>
+    <p style="margin:0 0 12px;font-size:15px;line-height:1.55;">We've received your application <strong>{{ application.reference }}</strong>.</p>
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.55;">No lending decision has been made yet. We'll check your details and email you with the outcome. You don't need to do anything for now.</p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+      <tr><td style="padding:8px 0;border-bottom:1px solid #e8f1ff;color:#667a90;">Invoice number</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e8f1ff;">{{ application.invoice_number }}</td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #e8f1ff;color:#667a90;">Amount borrowed</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e8f1ff;">{{ application.amount_display }}</td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #e8f1ff;color:#667a90;">Repayment period</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e8f1ff;">{{ application.get_term_months_display }}, one repayment</td></tr>
+      {% if due_date %}<tr><td style="padding:8px 0;border-bottom:1px solid #e8f1ff;color:#667a90;">Repayment due</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e8f1ff;">{{ due_date|date:"j F Y" }}</td></tr>{% endif %}
+      <tr><td style="padding:8px 0;border-bottom:1px solid #e8f1ff;color:#667a90;">Annualised APR</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e8f1ff;">{{ application.apr_display }}</td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #e8f1ff;color:#667a90;">Paid into</td><td align="right" style="padding:8px 0;border-bottom:1px solid #e8f1ff;">Account ending {{ application.account_last4 }}</td></tr>
+      <tr><td style="padding:12px 0 0;font-weight:bold;color:#123763;">Total to repay</td><td align="right" style="padding:12px 0 0;font-size:18px;font-weight:bold;color:#123763;">{{ application.total_repayable_display }}</td></tr>
+    </table>
+
+    <p style="margin:22px 0 0;font-size:14px;line-height:1.55;">Your invoice is attached as a PDF. It is not a credit agreement. If your loan is approved, we'll send you the agreement to read before you sign.</p>
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.55;">If you didn't make this application, or anything above is wrong, reply to this email or contact us straight away.</p>
+  </td></tr>
+
+  <tr><td style="padding:16px 4px 0;">
+    <p style="margin:0 0 12px;padding:12px 14px;background:#fff4e5;border:1px solid #f3d19c;border-radius:12px;font-size:14px;line-height:1.5;color:#5c3b00;"><strong>Late repayment can cause you serious money problems. For help, go to <a href="https://www.moneyhelper.org.uk" style="color:#5c3b00;">moneyhelper.org.uk</a>.</strong></p>
+    <p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:#667a90;">Keep safe: we will never ask for your online banking password, PIN or a one-time code by email or phone.</p>
+    <p style="margin:0;font-size:12px;line-height:1.5;color:#667a90;">{{ lender_name }} · {{ lender_address }}{% if fca_number %}<br>Authorised and regulated by the Financial Conduct Authority (FRN {{ fca_number }}).{% endif %}<br><a href="{{ main_site }}" style="color:#2458a6;">{{ main_site }}</a></p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>

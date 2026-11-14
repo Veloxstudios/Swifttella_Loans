@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from .models import Customer, LoanApplication, ScheduledRepayment, record
-from .pricing import quote
+from .pricing import TERM_CHOICES, quote, term_label
 
 CUSTOMER_FIELDS = [
     "title", "first_name", "last_name", "date_of_birth", "phone", "ni_number",
@@ -32,7 +32,7 @@ def create_application(data: dict, ip: str | None = None) -> LoanApplication:
             setattr(customer, f, data[f])
         customer.save()
 
-    q = quote(data["amount"] * 100, data["term_months"])
+    q = quote(data["amount"] * 100, TERM_CHOICES[0])
     application = LoanApplication.objects.create(
         customer=customer,
         amount_pence=q.principal_pence,
@@ -63,5 +63,5 @@ def create_application(data: dict, ip: str | None = None) -> LoanApplication:
         ScheduledRepayment(application=application, number=i.number, due_date=i.due_date, amount_pence=i.amount_pence)
         for i in q.instalments
     )
-    record(application, "submitted", f"{application.amount_display} over {application.term_months} months", actor=customer.email, ip=ip)
+    record(application, "submitted", f"{application.amount_display} over {term_label(application.term_months)}", actor=customer.email, ip=ip)
     return application

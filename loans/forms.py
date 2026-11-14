@@ -4,7 +4,7 @@ from django import forms
 
 from . import validators as v
 from .models import LoanApplication
-from .pricing import MAX_AMOUNT_GBP, MIN_AMOUNT_GBP, TERM_CHOICES
+from .pricing import AMOUNT_STEP_GBP, MAX_AMOUNT_GBP, MIN_AMOUNT_GBP, TERM_CHOICES, term_label
 
 TITLE_CHOICES = [("", "—"), ("Mr", "Mr"), ("Mrs", "Mrs"), ("Miss", "Miss"), ("Ms", "Ms"), ("Mx", "Mx"), ("Dr", "Dr")]
 
@@ -29,17 +29,22 @@ class MoneyField(forms.DecimalField):
             raise forms.ValidationError("Enter an amount in pounds.") from exc
 
 
+class RangeInput(forms.NumberInput):
+    """Slider like the one on the live calculator."""
+    input_type = "range"
+
+
 class LoanApplicationForm(forms.Form):
     # Loan
     amount = forms.IntegerField(
-        label="How much would you like to borrow? (£)",
+        label="Loan amount (£)",
         min_value=MIN_AMOUNT_GBP,
         max_value=MAX_AMOUNT_GBP,
-        help_text=f"Between £{MIN_AMOUNT_GBP} and £{MAX_AMOUNT_GBP:,}, in whole pounds.",
-    )
-    term_months = forms.TypedChoiceField(
-        label="Repayment period", coerce=int,
-        choices=[(t, f"{t} month{'s' if t > 1 else ''}") for t in TERM_CHOICES],
+        step_size=AMOUNT_STEP_GBP,
+        initial=500,
+        widget=RangeInput,
+        help_text=f"Between £{MIN_AMOUNT_GBP} and £{MAX_AMOUNT_GBP:,}, in steps of £{AMOUNT_STEP_GBP}. "
+                  f"Repaid in one payment after {term_label(TERM_CHOICES[0])}.",
     )
     purpose = forms.ChoiceField(label="What is the loan for?", choices=LoanApplication.Purpose.choices)
 
@@ -78,20 +83,24 @@ class LoanApplicationForm(forms.Form):
 
     # Consents
     accepted_terms = forms.BooleanField(label="I confirm the information is accurate and accept the terms of this application")
-    consented_credit_check = forms.BooleanField(label="I agree to identity, fraud and credit reference checks")
+    consented_credit_check = forms.BooleanField(label="I agree to identity, fraud prevention and credit reference agency checks. I understand a record of the search may appear on my credit file")
     marketing_opt_in = forms.BooleanField(label="Send me product news by email (optional)", required=False)
 
     SECTIONS = [
-        ("Your loan", ["amount", "term_months", "purpose"]),
-        ("About you", ["title", "first_name", "last_name", "date_of_birth", "email", "phone", "ni_number"]),
-        ("Your address", ["address_line1", "address_line2", "town", "county", "postcode", "years_at_address", "uk_resident"]),
-        ("Income and outgoings", ["employment_status", "employer_name", "housing_status", "monthly_income", "monthly_housing", "monthly_credit", "monthly_other"]),
-        ("Your UK bank account", ["account_holder_name", "bank_name", "sort_code", "account_number"]),
-        ("Confirm", ["accepted_terms", "consented_credit_check", "marketing_opt_in"]),
+        ("Your loan", "Choose an amount. It is repaid in one payment after 30 days.", ["amount", "purpose"]),
+        ("About you", "Your name, contact details and identification.",
+         ["title", "first_name", "last_name", "date_of_birth", "email", "phone", "ni_number"]),
+        ("Your address", "Tip: paste your full address into the first box and we'll split it up for you.",
+         ["address_line1", "address_line2", "town", "county", "postcode", "years_at_address", "uk_resident"]),
+        ("Income and outgoings", "Your regular monthly income and financial commitments.",
+         ["employment_status", "employer_name", "housing_status", "monthly_income", "monthly_housing", "monthly_credit", "monthly_other"]),
+        ("Your UK bank account", "Where the loan would be paid and the repayment collected.",
+         ["account_holder_name", "bank_name", "sort_code", "account_number"]),
+        ("Confirm", "Check your answers, then confirm below.", ["accepted_terms", "consented_credit_check", "marketing_opt_in"]),
     ]
 
     def sections(self):
-        return [(title, [self[name] for name in names]) for title, names in self.SECTIONS]
+        return [(title, subtitle, [self[name] for name in names]) for title, subtitle, names in self.SECTIONS]
 
     def clean_first_name(self):
         return self.cleaned_data["first_name"].strip()

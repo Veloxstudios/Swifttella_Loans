@@ -1,0 +1,9 @@
+{% extends "loans/staff_2fa_base.html" %}
+{% block title %}Your backup codes | {{ site_title }}{% endblock %}
+{% block twofa %}
+<h1>Two-factor sign-in is on</h1>
+<p class="lead">Save these backup codes somewhere safe, like a password manager. If you lose your phone, each code lets you sign in once.</p>
+<p class="warning"><strong>You won't see these codes again.</strong> Don't save them on the same phone as your authenticator app.</p>
+<ul class="codes">{% for c in codes %}<li><code>{{ c }}</code></li>{% endfor %}</ul>
+<p><a class="button" href="{{ next }}">I've saved my codes, continue</a></p>
+{% endblock %}

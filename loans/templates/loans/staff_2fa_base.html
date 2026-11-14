@@ -1,0 +1,6 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'loans/staff-2fa.css' %}">{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}<div class="twofa">{% block twofa %}{% endblock %}</div>{% endblock %}

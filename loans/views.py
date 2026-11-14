@@ -3,29 +3,27 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from .emails import send_application_received
 from .forms import LoanApplicationForm
 from .invoice import build_invoice_pdf
 from .models import LoanApplication, record
-from .pricing import DAILY_RATE, PROCESSING_FEE_PENCE, TOTAL_COST_CAP, DAYS_PER_MONTH
+from .pricing import DAILY_RATE, DAYS_PER_MONTH, PROCESSING_FEE_PENCE, TERM_CHOICES, TOTAL_COST_CAP
+from .security import client_ip, limit_submissions
 from .services import IdentityMismatch, create_application
 
 
-def client_ip(request):
-    # Railway and most PaaS proxies put the real client first in X-Forwarded-For.
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return forwarded.split(",")[0].strip() or request.META.get("REMOTE_ADDR")
-
-
 def _owned(request, public_id) -> LoanApplication:
-    """Return the application if this browser session submitted it, or the user is staff."""
+    """Return the application if this browser session submitted it, or the user is staff who passed 2FA."""
     application = get_object_or_404(LoanApplication.objects.select_related("customer"), public_id=public_id)
     allowed = str(public_id) in request.session.get(settings.INVOICE_SESSION_KEY, [])
-    if not (allowed or (request.user.is_authenticated and request.user.is_staff)):
+    staff = request.user.is_authenticated and request.user.is_staff and request.user.is_verified()
+    if not (allowed or staff):
         raise Http404
     return application
 
 
 @require_http_methods(["GET", "POST"])
+@limit_submissions
 def apply(request):
     form = LoanApplicationForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -34,12 +32,13 @@ def apply(request):
         except IdentityMismatch:
             form.add_error("email", "This email address is already linked to different personal details. Please contact us.")
         else:
+            send_application_received(application, ip=client_ip(request))
             owned = request.session.get(settings.INVOICE_SESSION_KEY, [])
             request.session[settings.INVOICE_SESSION_KEY] = (owned + [str(application.public_id)])[-20:]
             return redirect("loans:submitted", public_id=application.public_id)
     pricing = {
         "dailyRate": float(DAILY_RATE), "cap": float(TOTAL_COST_CAP),
-        "fee": PROCESSING_FEE_PENCE / 100, "daysPerMonth": DAYS_PER_MONTH,
+        "fee": PROCESSING_FEE_PENCE / 100, "termDays": DAYS_PER_MONTH * TERM_CHOICES[0],
     }
     return render(request, "loans/apply.html", {"form": form, "pricing": pricing})
 

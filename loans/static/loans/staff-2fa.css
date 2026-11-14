@@ -1,0 +1,19 @@
+/* Two-factor pages inside the staff admin. Uses the admin's own colour variables so light and dark themes both work. */
+.twofa { max-width: 620px; margin: 24px auto 48px; }
+.twofa h1 { margin-bottom: 8px; }
+.twofa .lead { font-size: 15px; color: var(--body-quiet-color); margin: 0 0 24px; }
+.twofa .steps { padding-left: 22px; margin: 0; }
+.twofa .steps li { margin-bottom: 28px; padding-left: 6px; }
+.twofa .steps h2 { font-size: 16px; margin: 0 0 6px; color: var(--body-fg); background: none; padding: 0; text-transform: none; letter-spacing: 0; }
+.twofa .qr { display: block; background: #fff; padding: 8px; border-radius: 8px; border: 1px solid var(--border-color); margin: 10px 0; }
+.twofa .secret code, .twofa .codes code { font-size: 15px; letter-spacing: .08em; padding: 6px 10px; border-radius: 6px; background: var(--darkened-bg); color: var(--body-fg); }
+.twofa .small { font-size: 13px; color: var(--body-quiet-color); }
+.twofa .code-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0 16px; }
+.twofa .code-form input[name=code] { font-size: 20px; letter-spacing: .15em; width: 12ch; padding: 10px 12px; }
+.twofa .code-form input[type=submit] { padding: 12px 18px; font-size: 14px; }
+.twofa .codes { list-style: none; padding: 0; margin-left: 0; display: grid; grid-template-columns: repeat(2, max-content); gap: 10px 24px; margin: 18px 0 24px; }
+.twofa .warning { border-left: 4px solid var(--message-warning-bg, #ffc); padding: 8px 12px; background: var(--darkened-bg); }
+.twofa .button { display: inline-block; padding: 12px 18px; }
+.twofa .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.twofa .errornote { margin-bottom: 14px; }
+.twofa .codes li { list-style: none; margin: 0; padding: 0; }

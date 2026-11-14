@@ -2,19 +2,23 @@
 {% block title %}Application received | Swiftella Loans{% endblock %}
 {% block content %}
 <div class="card done">
+  <span class="eyebrow">Application received</span>
   <h1>Thank you, {{ application.customer.first_name }}.</h1>
   <p class="lede">We've received your application <strong>{{ application.reference }}</strong>. No lending decision has been made yet; we'll email {{ application.customer.email }} with the outcome.</p>
 
   <div class="actions">
     <a class="btn" href="{% url 'loans:invoice' application.public_id %}?download=1">Download PDF invoice</a>
-    <a class="btn ghost" href="{% url 'loans:invoice' application.public_id %}" target="_blank" rel="noopener">View in browser</a>
+    <a class="btn secondary" href="{% url 'loans:invoice' application.public_id %}" target="_blank" rel="noopener">View in browser</a>
   </div>
 
   <table class="summary">
     <tr><th>Invoice number</th><td>{{ application.invoice_number }}</td></tr>
     <tr><th>Amount borrowed</th><td>{{ application.amount_display }}</td></tr>
-    <tr><th>Repayment period</th><td>{{ application.get_term_months_display }}</td></tr>
+    <tr><th>Repayment period</th><td>{{ application.get_term_months_display }} · one repayment</td></tr>
+    {% with first=application.repayments.first %}{% if first %}<tr><th>Repayment due</th><td>{{ first.due_date|date:"j F Y" }}</td></tr>{% endif %}{% endwith %}
+    <tr><th>Annualised APR</th><td>{{ application.apr_display }}</td></tr>
     <tr><th>Bank account</th><td>{{ application.sort_code }} · ****{{ application.account_last4 }}</td></tr>
+    <tr class="total"><th>Total to repay</th><td>{{ application.total_repayable_display }}</td></tr>
   </table>
   <p class="hint">Save your invoice now. For your security, this page is only available in the browser you applied from.</p>
 </div>
